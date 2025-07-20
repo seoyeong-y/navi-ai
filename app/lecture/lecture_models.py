@@ -37,3 +37,19 @@ class LectureReplacement(Base):
     id = Column(Integer, primary_key=True, index=True)
     original_code = Column(String(50), nullable=False)
     replacement_code = Column(String(50), nullable=False)
+
+
+class Lectures(Base):
+    __tablename__ = "lectures"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), nullable=False)
+    name = Column(String(255), nullable=False)
+    professor_id = Column(Integer, ForeignKey("professors.id"))
+    credits = Column(Integer, nullable=False)
+    type = Column(String(10))
+    grade = Column(String(10))
+    semester = Column(String(10))
+    year = Column(String(10))
+
+    professor = relationship("Professor", back_populates="lectures")
