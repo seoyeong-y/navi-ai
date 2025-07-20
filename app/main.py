@@ -1,10 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from app.core.config import settings
+from app.database.connection import init_db, close_db
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+    await close_db()
 
 app = FastAPI(
     title="Curriculum Design Chatbot",
     description="AI-powered curriculum design and recommendation system",
-    version="1.0.0"
+    version="1.0.0",
+    debug=settings.DEBUG,
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -17,7 +28,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "커리큘럼 설계 챗봇 API", "status": "running"}
+    return {"message": "Curriculum Design Chatbot API", "status": "running"}
 
 @app.get("/health")
 async def health_check():
