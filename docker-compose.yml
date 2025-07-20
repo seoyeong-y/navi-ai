@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  ai-server:
+    build: .
+    container_name: ai-server
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - ai-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    ports:
+      - "3307:3306"
+    env_file: .env
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./data:/docker-entrypoint-initdb.d
+    networks:
+      - ai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
+
+networks:
+  ai-network: {}
