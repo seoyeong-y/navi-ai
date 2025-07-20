@@ -1,0 +1,2 @@
+class LectureCRUD:
+    pass

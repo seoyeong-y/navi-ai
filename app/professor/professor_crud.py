@@ -1,0 +1,2 @@
+class ProfessorCrud:
+    pass
