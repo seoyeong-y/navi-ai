@@ -80,3 +80,19 @@ class LectureCrud:
                 uncompleted_gr.append(lecture.name)
 
         return uncompleted_mr, uncompleted_gr
+
+
+    # 대체 교과목 조회
+    async def get_replacement_codes_by_original(self, original_code: str) -> List[str]:
+        stmt = select(LectureReplacement.replacement_code).where(
+            LectureReplacement.original_code == original_code
+        )
+        result = await self.db.execute(stmt)
+        return [row.replacement_code for row in result]
+
+    async def get_original_codes_by_replacement(self, replacement_code: str) -> List[str]:
+        stmt = select(LectureReplacement.original_code).where(
+            LectureReplacement.replacement_code == replacement_code
+        )
+        result = await self.db.execute(stmt)
+        return [row.original_code for row in result]
