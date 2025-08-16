@@ -1,8 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
-from app.database.connection import init_db, close_db
+from app.database.connection import init_db, close_db, get_db
+from app.chat.websocket_handler import WebSocketHandler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +35,11 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "curriculum-chatbot"}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
+    handler = WebSocketHandler(db)
+    await handler.handle_websocket(websocket)
 
 if __name__ == "__main__":
     import uvicorn
