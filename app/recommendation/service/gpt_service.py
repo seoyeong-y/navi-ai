@@ -6,6 +6,7 @@ from app.core.config import Settings
 
 settings = Settings()
 
+
 class GPTService:
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -54,7 +55,6 @@ class GPTService:
             if line.strip() in recommended
         ]
 
-
     # GPT 기반 유사 강의 검색
     async def find_similar_lecture_by_gpt(
             self,
@@ -85,7 +85,6 @@ class GPTService:
             None
         )
         return matched if matched else result
-
 
     # GPT로 추가/삭제 요청 분석
     async def parse_add_remove_lectures(
@@ -142,7 +141,6 @@ class GPTService:
             print(f"JSON 디코딩 실패: {json_text}")
             return [], []
 
-
     # 삭제된 강의 제외 추천 판단
     async def is_requesting_alternative_recommendation(
             self,
@@ -174,7 +172,6 @@ class GPTService:
         except Exception as e:
             print(f"[GPT 대체 추천 판단 예외 발생] {e}")
             return False
-
 
     # 삭제된 강의 제외 유사 강의 추천
     async def suggest_other_similar_lectures(
@@ -214,7 +211,6 @@ class GPTService:
             for line in response.choices[0].message.content.strip().split("\n")
             if line.strip()
         ]
-
 
     # 관심 분야 명확성 판단
     async def resolve_unclear_interest(self, user_input: str) -> Tuple[List[str], bool]:
@@ -257,7 +253,6 @@ class GPTService:
             print(f"[GPT 관심 분야 처리 오류] {e}")
             return [user_input], False
 
-
     # 추천 강의 목록 수정 종료 판단
     async def is_no_more_modification(self, user_input: str) -> bool:
         prompt = f"""
@@ -283,7 +278,6 @@ class GPTService:
         except Exception as e:
             print(f"[GPT 판단 오류] {e}")
             return False
-
 
     # 커리큘럼 설계 조건 판단
     async def parse_conditions_with_gpt(self, user_input: str) -> List[str]:
@@ -322,7 +316,6 @@ class GPTService:
         except Exception:
             return []
 
-
     # 커리큘럼 설계 요청 판단
     async def is_curriculum_request(self, user_input: str) -> bool:
         prompt = f"""
@@ -346,3 +339,320 @@ class GPTService:
         except Exception as e:
             print(f"[GPT 커리큘럼 요청 판단 오류] {e}")
             return False
+
+    # 재수강 강의 코드 변환
+    async def names_to_codes_by_gpt(self, user_names, lecture_list, completed_data):
+        GRADE_POINT = {
+            'A+': 4.5, 'A0': 4.0,
+            'B+': 3.5, 'B0': 3.0,
+            'C+': 2.5, 'C0': 2.0,
+            'D+': 1.5, 'D0': 1.0,
+            'F': 0
+        }
+
+        candidate_names = set()
+        for sem in completed_data.values():
+            for lecture_type, lectures in sem.items():
+                for code, name, credit, grade in lectures:
+                    g = GRADE_POINT.get(str(grade).strip(), 10)
+                    if g <= 2.5 or grade == 'NP':
+                        candidate_names.add(name)
+        candidate_names = list(candidate_names)
+
+        lecture_name_to_code = {lec[0]: lec[8] for lec in lecture_list}
+
+        codes = []
+        for input_name in user_names:
+            resolved_name = await self.find_similar_lecture_by_gpt(input_name, candidate_names)
+            if not resolved_name:
+                print(f"[경고] 유사 강의명 찾기 실패: {input_name}")
+                continue
+            code = lecture_name_to_code.get(resolved_name)
+            if code:
+                codes.append(code)
+            else:
+                print(f"[경고] name→code 변환 실패: {resolved_name}")
+        return codes
+
+    # 추가 확인 판단
+    async def is_user_confirming_addition(self, user_input: str) -> bool:
+        prompt = f"""
+        사용자의 입력: "{user_input}"
+
+        위 입력이 이전에 제안한 강의 추가에 대한 '확인' 또는 '동의'를 의미하면 "YES", 아니라면 "NO"라고만 답하세요.
+        예: "응", "네", "맞아", "추가해줘", "그거야", "좋아" → YES
+        예: "아니", "다른 거", "그건 아냐", "다시 알려줘" → NO
+        절대 다른 설명 없이 YES 또는 NO만 출력하세요.
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=3,
+                temperature=0
+            )
+            return response.choices[0].message.content.strip().upper() == "YES"
+        except Exception as e:
+            print(f"[GPT 확인 응답 판단 오류] {e}")
+            return False
+
+    # 커리큘럼 편집 요청 판단
+    async def is_curriculum_edit_request(self, user_input: str) -> bool:
+        prompt = f"""
+        사용자의 입력: "{user_input}"
+
+        이 입력이 본인의 커리큘럼에서 강의를 추가하거나 삭제하거나, 특정 학기로 이동시키려는 요청이면 "YES", 아니라면 "NO"라고만 답하세요.
+
+        다음은 YES인 예시입니다:
+        - "자바 수업 빼줘"
+        - "논리회로 3학년 1학기로 옮겨줘"
+        - "딥러닝 수업 추가해줘"
+        - "커리큘럼에 웹프레임워크 넣고 싶어"
+
+        다음은 NO인 예시입니다:
+        - "커리큘럼 삭제해줘"
+        - "커리큘럼 21 지워"
+        - "커리큘럼 목록 보여줘"
+        - "졸업 요건 알려줘"
+
+        절대 다른 설명 없이 YES 또는 NO만 출력하세요.
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=3,
+                temperature=0
+            )
+            return response.choices[0].message.content.strip().upper() == "YES"
+        except Exception as e:
+            print(f"[GPT 수정 판단 오류] {e}")
+            return False
+
+    # 커리큘럼 편집 명령 파싱
+    async def parse_curriculum_edit_command(self, user_input: str, curri_id: int) -> dict:
+        prompt = f"""
+        사용자는 본인의 커리큘럼을 수정하려고 합니다.
+
+        사용자 입력: "{user_input}"
+
+        이 입력이 강의를 삭제하려는 요청이면:
+        {{
+            "action": "remove",
+            "lecture_name": "강의명"
+        }}
+
+        강의를 다른 학기로 옮기려는 요청이면:
+        {{
+            "action": "move",
+            "lecture_name": "강의명",
+            "target_grade": "3",
+            "target_semester": "2"
+        }}
+
+        강의를 추가하려는 요청이면:
+        {{
+            "action": "add",
+            "lecture_name": "강의명",
+            "target_grade": "3",
+            "target_semester": "2"
+        }}
+
+        반드시 위 JSON 형식 중 하나로만 출력하고, 절대로 설명은 포함하지 마세요.
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0
+            )
+            return json.loads(response.choices[0].message.content.strip())
+        except Exception as e:
+            print(f"[parse_curriculum_edit_command 오류] {e}")
+            return {}
+
+    # 단순 메시지 전송용 GPT 함수
+    async def chat_with_gpt_simple(self, message: str) -> str:
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": message}]
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"오류 발생: {e}"
+
+    # 커리큘럼 삭제 요청 판단
+    async def is_curriculum_delete_request(self, user_input: str, curri_names: List[str]) -> bool:
+        curri_list_str = ", ".join(curri_names)
+        prompt = f"""
+        아래는 사용자가 보유한 커리큘럼 목록입니다:
+        [{curri_list_str}]
+
+        사용자의 입력: "{user_input}"
+
+        이 입력이 위 목록 중 하나의 커리큘럼을 삭제하려는 의도인지 판단하세요.
+
+        아래 조건을 모두 만족하면 "YES", 아니면 "NO"라고만 답하세요:
+        - "삭제", "지워", "없애"와 같은 표현이 포함되어야 함
+        - 위 목록 중 하나의 커리큘럼 이름이 명시되거나 암시되어야 함
+
+        단, 강의 삭제, 이동, 추가에 대한 요청이면 "NO"로 답하세요.
+
+        예:
+        - "커리큘럼 21 삭제해줘" → YES
+        - "머신러닝 수업 삭제해줘" → NO
+
+        답변은 반드시 YES 또는 NO만 포함해야 합니다.
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=3,
+                temperature=0
+            )
+            return response.choices[0].message.content.strip().upper() == "YES"
+        except Exception as e:
+            print(f"[GPT 커리큘럼 삭제 판단 오류] {e}")
+            return False
+
+    # 삭제 확인 판단
+    async def is_user_confirming_deletion(self, user_input: str) -> bool:
+        prompt = f"""
+        사용자의 입력: "{user_input}"
+
+        이 입력이 '정말로 삭제하고 싶다'는 의미라면 "YES", 아니라면 "NO"라고만 대답하세요.
+        예: "네", "응", "삭제해줘", "맞아", "그래", "지워", "ㅇㅇ", "삭제 원해" → YES
+        예: "아니", "잘못 말했어", "아직", "보류", "그만", "취소", "지우지 마" → NO
+        절대 다른 설명 없이 YES 또는 NO만 출력하세요.
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=3,
+                temperature=0
+            )
+            return response.choices[0].message.content.strip().upper() == "YES"
+        except Exception as e:
+            print(f"[GPT 삭제 확인 판단 오류] {e}")
+            return False
+
+    # 삭제 커리큘럼 이름 추출
+    async def extract_curriculum_name_for_deletion(self, user_input: str, curri_names: List[str]) -> str:
+        name_map = {
+            curri_name.replace(" ", "").lower(): curri_name
+            for curri_name in curri_names
+        }
+
+        prompt = f"""
+        다음은 사용자가 가진 커리큘럼 목록입니다:
+        {chr(10).join(f"- {name}" for name in curri_names)}
+
+        사용자의 삭제 요청 입력: "{user_input}"
+
+        이 입력에서 삭제하려는 커리큘럼의 이름을 정확히 추출해서 출력하세요.
+        커리큘럼 이름 외에는 절대로 아무 설명도 하지 마세요.
+        """
+
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=20,
+                temperature=0
+            )
+            extracted = response.choices[0].message.content.strip()
+            key = extracted.replace(" ", "").lower()
+            return name_map.get(key, "")
+        except Exception as e:
+            print(f"[GPT 커리큘럼 삭제 이름 추출 실패] {e}")
+            return ""
+
+    # 커리큘럼 선택 요청 판단
+    async def is_curriculum_selection_request(self, user_input: str) -> bool:
+        prompt = f"""
+        사용자의 입력: "{user_input}"
+
+        이 입력이 '커리큘럼을 선택하려는 요청'인지 판단해주세요.
+        예를 들어, "3번 커리큘럼 선택", "커리큘럼 2번 보여줘", "커리큘럼 1 골라줘" 같은 문장은 YES입니다.
+        단순히 "커리큘럼 만들어줘", "강의 추가해줘"처럼 설계나 수정 요청이면 NO입니다.
+
+        결과는 반드시 "YES" 또는 "NO"로만 출력해주세요.
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=3,
+                temperature=0
+            )
+            result = response.choices[0].message.content.strip().upper()
+            return result == "YES"
+        except Exception as e:
+            print(f"[GPT 커리큘럼 선택 판단 오류] {e}")
+            return False
+
+    # 커리큘럼 ID 추출
+    async def extract_curriculum_id(self, user_input: str, user_id: int) -> int:
+        from app.curriculum.curriculum_repository import CurriculumCrud
+        from app.database.connection import get_db
+
+        # 임시 DB 세션 생성 (실제 사용 시 적절한 방식으로 주입)
+        async for db in get_db():
+            curriculum_crud = CurriculumCrud(db)
+
+            # 사용자가 가진 커리큘럼 이름과 ID 매핑
+            from sqlalchemy import select
+            from app.curriculum.curriculum_models import Curriculum
+
+            stmt = select(Curriculum.id, Curriculum.name).where(Curriculum.user_id == user_id)
+            result = await db.execute(stmt)
+
+            for curri_id, name in result:
+                if name.replace(" ", "") in user_input.replace(" ", ""):
+                    return curri_id
+            break
+
+        return None
+
+    # 선이수/필요 지식 과목 조회
+    async def get_prerequisites_and_required_knowledge_by_name(self, lecture_name: str) -> List[str]:
+        from app.database.connection import get_db
+        from sqlalchemy import text
+
+        query = """
+                SELECT (SELECT GROUP_CONCAT(DISTINCT pre.name)
+                        FROM prerequisite p
+                                 JOIN lecture_code pre ON pre.id = p.pre_lecture_code
+                        WHERE p.lecture_code = (SELECT lc.id \
+                                                FROM lecture_code lc \
+                                                WHERE lc.code = r.code \
+                                                LIMIT 1))  AS prerequisites, \
+                       (SELECT GROUP_CONCAT(DISTINCT req.name)
+                        FROM required_knowledge rk
+                                 JOIN lecture_code req ON req.id = rk.required_lecture_code
+                        WHERE rk.lecture_code = (SELECT lc.id \
+                                                 FROM lecture_code lc \
+                                                 WHERE lc.code = r.code \
+                                                 LIMIT 1)) AS required_knowledge
+                FROM recent_lectures r
+                WHERE r.name = :lecture_name
+                LIMIT 1 \
+                """
+
+        async for db in get_db():
+            result = await db.execute(text(query), {"lecture_name": lecture_name})
+            row = result.fetchone()
+            break
+
+        if not row:
+            return []
+
+        prerequisites = row[0].split(",") if row[0] else []
+        required_knowledge = row[1].split(",") if row[1] else []
+
+        related = list(set(prerequisites + required_knowledge))
+        return related
