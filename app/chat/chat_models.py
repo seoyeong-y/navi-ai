@@ -4,17 +4,17 @@ from datetime import datetime
 
 
 class ChatSession(Base):
-    __tablename__ = "chat_sessions"
+    __tablename__ = "chat_session"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=False)
     session_type = Column(String(50), nullable=False)
-    started_at = Column(DateTime, nullable=False, default=datetime.now)
-    ended_at = Column(DateTime)
+    start_time = Column(DateTime, nullable=False, default=datetime.now)
+    end_time = Column(DateTime)
 
 
 class ChatLog(Base):
-    __tablename__ = "chat_logs"
+    __tablename__ = "chat_log"
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, nullable=False)

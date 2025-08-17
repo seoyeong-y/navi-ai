@@ -8,8 +8,8 @@ sqlalchemy[asyncio]==2.0.23
 aiomysql==0.2.0
 alembic==1.12.1
 
-# OpenAI GPT API
-openai==1.3.5
+# OpenAI GPT API - 버전 업데이트
+openai==1.35.0
 
 # 환경변수 관리
 python-dotenv==1.0.0
@@ -27,3 +27,6 @@ pytest-asyncio==0.21.1
 black==23.11.0
 isort==5.12.0
 flake8==6.1.0
+
+# 정규표현식 라이브러리
+regex==2023.12.25

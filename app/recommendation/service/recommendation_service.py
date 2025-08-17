@@ -19,7 +19,7 @@ class RecommendationService:
         self.lecture_service = LectureService(db)
         self.curriculum_crud = CurriculumCrud(db)
         self.chat_crud = ChatCrud(db)
-        self.gpt_service = GPTService()
+        self.gpt_service = GPTService(db)  # DB 세션 주입
 
     async def handle_major_interest_input(self, client, websocket, user_input, completed_names, session_id):
         resolved, unclear = await self.gpt_service.resolve_unclear_interest(user_input)
@@ -218,7 +218,8 @@ class RecommendationService:
                         major_interest=websocket.scope.get("major_interest", []),
                         general_interest=websocket.scope.get("general_interest", []),
                         conditions=websocket.scope.get("conditions", []),
-                        retake_codes=websocket.scope.get("retake_codes", [])
+                        retake_codes=websocket.scope.get("retake_codes", []),
+                        db=self.db
                     )
 
                     print("커리큘럼 설계 완료")

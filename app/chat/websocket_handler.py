@@ -32,7 +32,7 @@ class WebSocketHandler:
         self.lecture_crud = LectureCrud(db)
         self.lecture_service = LectureService(db)
         self.professor_crud = ProfessorCrud(db)
-        self.gpt_service = GPTService()
+        self.gpt_service = GPTService(db)  # DB 세션 주입
         self.recommendation_service = RecommendationService(db)
         self.curriculum_edit_service = CurriculumEditService(db)
         self.curriculum_service = CurriculumService(db)

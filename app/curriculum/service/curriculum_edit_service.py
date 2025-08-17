@@ -17,7 +17,7 @@ class CurriculumEditService:
         self.curriculum_crud = CurriculumCrud(db)
         self.lecture_crud = LectureCrud(db)
         self.chat_crud = ChatCrud(db)
-        self.gpt_service = GPTService()
+        self.gpt_service = GPTService(db)  # DB 세션 주입
 
     async def handle_completed_curriculum_edit(self, websocket: WebSocket, user_input: str):
         curri_id = websocket.scope.get("selected_curri_id")
