@@ -12,7 +12,7 @@ class ChatCrud:
         session = ChatSession(
             user_id=user_id,
             session_type=session_type,
-            started_at=datetime.now()
+            start_time=datetime.now()
         )
         self.db.add(session)
         await self.db.commit()
@@ -23,7 +23,7 @@ class ChatCrud:
     async def end_chat_session(self, session_id: int):
         session = await self.db.get(ChatSession, session_id)
         if session:
-            session.ended_at = datetime.now()
+            session.end_time = datetime.now()
             await self.db.commit()
 
     # 채팅 로그 저장

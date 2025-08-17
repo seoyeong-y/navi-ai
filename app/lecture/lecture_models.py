@@ -53,3 +53,19 @@ class Lectures(Base):
     year = Column(String(10))
 
     professor = relationship("Professor", back_populates="lectures")
+
+
+class Prerequisite(Base):
+    __tablename__ = "prerequisite"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lecture_code = Column(Integer, ForeignKey("lecture_code.id"))
+    pre_lecture_code = Column(Integer, ForeignKey("lecture_code.id"))
+
+
+class RequiredKnowledge(Base):
+    __tablename__ = "required_knowledge"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lecture_code = Column(Integer, ForeignKey("lecture_code.id"))
+    required_lecture_code = Column(Integer, ForeignKey("lecture_code.id"))
