@@ -11,6 +11,7 @@ import json, asyncio, re
 from collections import defaultdict
 from app.curriculum.service.curriculum_manager import CurriculumService
 from app.curriculum.service.curriculum_final_builder import build_final_curriculum
+from app.utils.condition_utils import encode_conditions
 
 class RecommendationService:
     def __init__(self, db: AsyncSession):
@@ -252,12 +253,14 @@ class RecommendationService:
                     filtered_interest = [interest for interest in full_interest if exclusion_phrase not in interest]
 
                     description = ", ".join(sorted(set(map(str.strip, filtered_interest))))
+                    conditions_string = encode_conditions(websocket.scope.get("conditions", []))
 
                     curri_id = await self.curriculum_crud.save_curriculum(
                         user_id=user_id,
                         name=curriculum_name,
                         total_credits=total_credits,
-                        description=description
+                        description=description,
+                        conditions=conditions_string
                     )
 
                     completed_lecture_list = []

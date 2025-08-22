@@ -21,3 +21,17 @@ preferred_professors = [
     {"id": 14, "name": "이지은"},
     {"id": 51, "name": "김준성"}
 ]
+
+CONDITION_CODES = {
+    'graduation': 'G',
+    'no_team_project': 'T',
+    'preferred_professor': 'P',
+    'retake': 'R'
+}
+
+CONDITION_NAMES = {
+    'G': '졸업',
+    'T': '팀플 제외',
+    'P': '선호 교수',
+    'R': '재수강 포함'
+}

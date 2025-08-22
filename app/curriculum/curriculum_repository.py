@@ -36,13 +36,14 @@ class CurriculumCrud:
         return await self.db.get(CurriLecture, curri_lecture_id)
 
     # 커리큘럼 저장
-    async def save_curriculum(self, user_id: int, name: str, total_credits: int, description: str = "") -> int:
+    async def save_curriculum(self, user_id: int, name: str, total_credits: int, description: str = "", conditions: str = "") -> int:
         curriculum = Curriculum(
             user_id=user_id,
             name=name,
             created_at=datetime.now(),
             total_credits=total_credits,
-            description=description
+            description=description,
+            conditions=conditions
         )
         self.db.add(curriculum)
         await self.db.commit()
@@ -94,3 +95,21 @@ class CurriculumCrud:
         await self.db.delete(curriculum)
         await self.db.commit()
         return True
+
+    async def get_curriculum_with_conditions(self, curriculum_id: int) -> Optional[dict]:
+        stmt = select(Curriculum).where(Curriculum.id == curriculum_id)
+        result = await self.db.execute(stmt)
+        curriculum = result.scalar_one_or_none()
+
+        if not curriculum:
+            return None
+
+        return {
+            "id": curriculum.id,
+            "user_id": curriculum.user_id,
+            "name": curriculum.name,
+            "created_at": curriculum.created_at,
+            "total_credits": curriculum.total_credits,
+            "description": curriculum.description,
+            "conditions": curriculum.conditions
+        }

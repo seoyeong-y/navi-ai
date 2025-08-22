@@ -113,7 +113,7 @@ class WebSocketHandler:
                             continue
 
                         if await self.gpt_service.is_curriculum_request(user_input):
-                            message = "더욱 맞춤화된 커리큘럼을 생성하기 위해,아래에서 원하는 조건을 모두 선택해 주세요.\n\n관심 분야 외의 과목은 아래 조건으로 설계됩니다.\n\n조건: 졸업, 재수강, 선호 교수, 팀플 없음"
+                            message = "더욱 맞춤화된 커리큘럼을 생성하기 위해,아래에서 원하는 조건을 모두 선택해 주세요.\n\n관심 분야 외의 과목은 아래 조건으로 설계됩니다.\n\n조건: 졸업, 재수강, 선호 교수, 팀플 제외"
                             await websocket.send_text(json.dumps({
                                 "message": message,
                                 "type": "condition_selection_prompt"
