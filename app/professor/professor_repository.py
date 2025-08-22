@@ -16,7 +16,7 @@ class ProfessorCrud:
         lectures = result.scalars().all()
 
         return [(lec.name, lec.credits, lec.type, lec.grade, lec.semester,
-                 '', '', lec.code, '') for lec in lectures]
+                 '', '', '', lec.code, '') for lec in lectures]
 
     # ID로 교수 조회
     async def get_professor_by_id(self, professor_id: int) -> Optional[Professor]:

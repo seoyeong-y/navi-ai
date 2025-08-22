@@ -27,7 +27,6 @@ class RecentLecture(Base):
     semester = Column(String(10))
     major = Column(String(50))
     team_project = Column(String(10))
-
     lecture_code = relationship("LectureCode", back_populates="recent_lectures")
 
 
