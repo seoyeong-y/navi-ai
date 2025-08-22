@@ -68,23 +68,26 @@ class CurriculumBuilder:
         if graduation_mode:
             max_semester_limit = 8
 
+        # 종합설계 과목 정의
         design_planning = "종합설계기획"
         design1 = "종합설계1"
         design2 = "종합설계2"
         design_courses = [design_planning, design1, design2]
 
+        # 종합설계 과목들을 lectures에서 찾기
         design_lectures = {}
         for lec in lectures:
             name = lec[0]
             if name in design_courses:
                 design_lectures[name] = lec
 
+        # 만약 lectures에서 찾을 수 없다면 full_lectures에서 찾기
         for lec in full_lectures:
             name = lec[0]
             if name in design_courses and name not in design_lectures:
                 design_lectures[name] = lec
 
-        # 이수 완료 과목 반영
+        # 이수 완료된 과목들 반영
         for semester_key, lec_by_type in completed_data.items():
             curriculum[semester_key] = []
             for lec_type, lec_list in lec_by_type.items():
@@ -96,7 +99,7 @@ class CurriculumBuilder:
         log_curriculum_snapshot(curriculum)
         log_total_credits(curriculum)
 
-        # 종합설계 미리 배정
+        # 종합설계 과목들을 미리 배정 (가장 우선순위)
         design_schedule = [
             (3, 2, design_planning),  # 3학년 2학기: 종합설계기획
             (4, 1, design1),  # 4학년 1학기: 종합설계1
@@ -107,11 +110,11 @@ class CurriculumBuilder:
         assigned_names = set(completed_names)
         semester_credit_map = defaultdict(int)
 
-        # 기존 커리큘럼 학점 계산
+        # 기존 커리큘럼의 학점 계산
         for sem_key, lectures_in_sem in curriculum.items():
             semester_credit_map[sem_key] = sum(c for _, c, _ in lectures_in_sem)
 
-        # 종합설계 과목 강제 배정
+        # 종합설계 과목들 강제 배정
         for design_year, design_sem, design_name in design_schedule:
             # 이미 이수했거나 배정된 경우 스킵
             if design_name in assigned_names:
@@ -134,11 +137,11 @@ class CurriculumBuilder:
             # 해당 학기가 아직 생성되지 않았다면 생성
             curriculum.setdefault(sem_key, [])
 
-            # 종합설계 과목 우선 배정
+            # 종합설계 과목 우선 배정 (21학점 내에서)
             current_credits = semester_credit_map[sem_key]
             curriculum[sem_key].append((design_name, credit, lec_type))
             assigned_names.add(design_name)
-            if design_lec:
+            if design_lec:  # 실제 강의 정보가 있는 경우에만 코드 추가
                 assigned_codes.add(code)
             semester_credit_map[sem_key] += credit
             total_credits += credit
@@ -209,6 +212,7 @@ class CurriculumBuilder:
             total_credits += credit_local
             return True
 
+        # 메인 커리큘럼 생성 루프
         while (
                 (graduation_mode and current_semester_index <= 8 and total_credits < total_required_credits) or
                 (not graduation_mode and (len(curriculum) < 8 or current_semester_index <= 18))
@@ -290,41 +294,66 @@ class CurriculumBuilder:
             log_curriculum_snapshot(curriculum)
             log_total_credits(curriculum)
 
-            # 재수강 강의 배정
-            if retake_mode:
-                for code in retake_codes:
-                    lec = next((l for l in lectures if l[8] == code), None)  # 수정: l[7] → l[8]
-                    if not lec:
-                        continue
-                    name, credit, lec_type, grade, semester, _, _, _, _, _ = lec
+            # 재수강 강의 배정 (사용자가 선택한 과목들만, 현재 학기 이후에)
+            if retake_mode and retake_codes:
+                for retake_code in retake_codes:
+                    # retake_codes에 있는 과목들을 lectures에서 찾기
+                    retake_lec = next((l for l in lectures if l[8] == retake_code), None)
+                    if not retake_lec:
+                        # lectures에 없으면 full_lectures에서 찾기
+                        retake_lec = next((l for l in full_lectures if l[8] == retake_code), None)
 
+                    if not retake_lec:
+                        print(f"[재수강 경고] 코드 {retake_code}에 해당하는 강의를 찾을 수 없음")
+                        continue
+
+                    name, credit, lec_type, grade, semester, _, _, _, code, _ = retake_lec
+
+                    # 이미 배정된 경우 스킵
                     if name in assigned_names or code in assigned_codes:
                         continue
 
+                    # 현재 학기 이후에만 배정
+                    retake_assigned = False
                     for gy in range(student_grade, 10):
                         for gs in [1, 2]:
+                            # 현재 학기보다 이후 학기에만 배정
+                            if (gy < student_grade) or (gy == student_grade and gs <= student_semester):
+                                continue
+
+                            # 원래 강의의 개설 학기와 맞춰서 배정
+                            if int(semester) != gs:
+                                continue
+
                             sem_key = f"{gy}학년 {gs}학기"
                             curriculum.setdefault(sem_key, [])
-                            semester_credits = sum(c for _, c, _ in curriculum[sem_key])
+                            semester_credits = semester_credit_map[sem_key]
+
+                            # 종합설계 과목 배정 후 남은 학점으로 재수강 과목 배정
                             if semester_credits + credit <= 21:
                                 curriculum[sem_key].append((name, credit, lec_type))
                                 assigned_names.add(name)
                                 assigned_codes.add(code)
                                 semester_credit_map[sem_key] += credit
                                 total_credits += credit
-                                print(f"[재수강 강의 배정]: {name} → {sem_key}")
+                                print(f"[재수강 배정] {name} → {sem_key} ({credit}학점)")
+                                retake_assigned = True
                                 break
-                        else:
-                            continue
-                        break
+                        if retake_assigned:
+                            break
+
+                    if not retake_assigned:
+                        print(f"[재수강 실패] {name} 배정할 수 있는 학기를 찾지 못함")
 
                 print("4. 재수강 강의 배정 완료: ")
                 log_curriculum_snapshot(curriculum)
                 log_total_credits(curriculum)
 
+            # 메인 강의 배정 (종합설계 배정 후 남은 학점으로)
             for lec in current_lecture_pool:
                 name, credit, lec_type, grade, lec_semester, prereq, _, team_project, code, _ = lec
 
+                # 종합설계 과목은 이미 배정했으므로 스킵
                 if name in design_courses or code in assigned_codes or name in assigned_names:
                     continue
 
@@ -333,6 +362,7 @@ class CurriculumBuilder:
                 if int(lec_semester) != semester:
                     continue
 
+                # 현재 학기에 배정 가능한지 확인 (종합설계 과목 배정 후 남은 학점)
                 if semester_credit_map[semester_key] + credit > 21:
                     overflow_inserted = False
 
