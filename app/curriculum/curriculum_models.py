@@ -13,6 +13,7 @@ class Curriculum(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.now)
     total_credits = Column(Integer, nullable=False)
     description = Column(Text)
+    conditions = Column(String(20))
 
     lectures = relationship("CurriLecture", back_populates="curriculum")
 
