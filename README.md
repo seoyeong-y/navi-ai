@@ -30,10 +30,10 @@
 - **SQLAlchemy**: ORM 및 데이터베이스 관리
 - **MySQL**: 관계형 데이터베이스
 - **WebSocket**: 실시간 양방향 통신
+- **Python asyncio**: 비동기 처리
 
 ### AI
 - **OpenAI GPT-4**: 자연어 처리 및 추천 알고리즘
-- **Python asyncio**: 비동기 처리
 
 ### Infrastructure
 - **Docker**: 컨테이너화
@@ -50,7 +50,24 @@
 
 <br>
 
-## 🚀 Docker 실행
+## 🚀 설치 방법
+### 1. 가상환경 생성 및 활성화
+```bash
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+```
+### 2. 의존성 설치
+```bash
+pip install -r requirements.txt
+```
+### 3. 서버 실행
+```bash
+uvicorn app.main:app --reload
+```
+
+<br>
+
+## 🐳 Docker 실행
 
 ### 컨테이너 실행
 ```bash
@@ -67,37 +84,37 @@ docker-compose up -d
 
 ```
 app/
-├── main.py                   # FastAPI 애플리케이션 진입점
+├── main.py          # FastAPI 애플리케이션 진입점
 ├── core/
-│   ├── config.py             # 설정 관리
-│   └── constants.py          # 상수 정의
+│   ├── config.py          # 설정 관리
+│   └── constants.py       # 상수 정의
 ├── database/
-│   ├── base.py              # SQLAlchemy Base
-│   └── connection.py        # DB 연결 관리
+│   ├── base.py            # SQLAlchemy Base
+│   └── connection.py      # DB 연결 관리
 ├── chat/
-│   ├── websocket_handler.py # WebSocket 핸들러
-│   ├── chat_models.py       # 채팅 모델
-│   └── chat_repository.py   # 채팅 데이터 저장소
+│   ├── websocket_handler.py       # WebSocket 핸들러
+│   ├── chat_models.py             # 채팅 모델
+│   └── chat_repository.py         # 채팅 데이터 저장소
 ├── curriculum/
-│   ├── curriculum_models.py     # 커리큘럼 모델
-│   ├── curriculum_repository.py # 커리큘럼 데이터 저장소
-│   └── service/                 # 커리큘럼 비즈니스 로직
-│       ├── curriculum_manager.py
-│       ├── curriculum_builder.py
-│       ├── curriculum_final_builder.py
-│       ├── curriculum_edit_service.py
-│       └── curriculum_utils.py
+│   ├── curriculum_models.py       # 커리큘럼 모델
+│   ├── curriculum_repository.py   # 커리큘럼 데이터 저장소
+│   └── service/                      
+│       ├── curriculum_manager.py       # 커리큘럼 생성 및 학점 계산 로직
+│       ├── curriculum_builder.py       # 커리큘럼 구성 및 스케줄링 로직
+│       ├── curriculum_final_builder.py # 최종 커리큘럼 생성 및 통합 로직
+│       ├── curriculum_edit_service.py  # 커리큘럼 편집 기능 로직
+│       └── curriculum_utils.py         # 커리큘럼 관련 유틸리티
 ├── lecture/
-│   ├── lecture_models.py     # 강의 모델
-│   ├── lecture_repository.py # 강의 데이터 저장소
-│   └── lecture_service.py    # 강의 서비스
+│   ├── lecture_models.py          # 강의 모델
+│   ├── lecture_repository.py      # 강의 데이터 저장소
+│   └── lecture_service.py         # 강의 서비스
 ├── recommendation/
 │   └── service/
-│       ├── gpt_service.py            # GPT API 서비스
-│       └── recommendation_service.py # 추천 서비스
+│       ├── gpt_service.py              # GPT API 서비스
+│       └── recommendation_service.py   # 추천 서비스
 ├── professor/
-│   ├── professor_models.py     # 교수 모델
-│   └── professor_repository.py # 교수 데이터 저장소
+│   ├── professor_models.py        # 교수 모델
+│   └── professor_repository.py    # 교수 데이터 저장소
 └── utils/
     ├── completed_data.py      # 이수 완료 데이터
     ├── format_utils.py        # 형식 유틸리티
