@@ -10,6 +10,7 @@ from app.professor.professor_repository import ProfessorCrud
 from app.utils.format_utils import format_curriculum
 from app.curriculum.service.curriculum_utils import add_extra_lectures
 
+
 class CurriculumBuilder:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -67,26 +68,23 @@ class CurriculumBuilder:
         if graduation_mode:
             max_semester_limit = 8
 
-        # 종합설계 과목 정의
         design_planning = "종합설계기획"
         design1 = "종합설계1"
         design2 = "종합설계2"
         design_courses = [design_planning, design1, design2]
 
-        # 종합설계 과목들을 lectures에서 찾기
         design_lectures = {}
         for lec in lectures:
             name = lec[0]
             if name in design_courses:
                 design_lectures[name] = lec
 
-        # 만약 lectures에서 찾을 수 없다면 full_lectures에서 찾기
         for lec in full_lectures:
             name = lec[0]
             if name in design_courses and name not in design_lectures:
                 design_lectures[name] = lec
 
-        # 이수 완료된 과목들 반영
+        # 이수 완료 과목 반영
         for semester_key, lec_by_type in completed_data.items():
             curriculum[semester_key] = []
             for lec_type, lec_list in lec_by_type.items():
@@ -98,7 +96,7 @@ class CurriculumBuilder:
         log_curriculum_snapshot(curriculum)
         log_total_credits(curriculum)
 
-        # 종합설계 과목들을 미리 배정 (가장 우선순위)
+        # 종합설계 미리 배정
         design_schedule = [
             (3, 2, design_planning),  # 3학년 2학기: 종합설계기획
             (4, 1, design1),  # 4학년 1학기: 종합설계1
@@ -109,11 +107,11 @@ class CurriculumBuilder:
         assigned_names = set(completed_names)
         semester_credit_map = defaultdict(int)
 
-        # 기존 커리큘럼의 학점 계산
+        # 기존 커리큘럼 학점 계산
         for sem_key, lectures_in_sem in curriculum.items():
             semester_credit_map[sem_key] = sum(c for _, c, _ in lectures_in_sem)
 
-        # 종합설계 과목들 강제 배정
+        # 종합설계 과목 강제 배정
         for design_year, design_sem, design_name in design_schedule:
             # 이미 이수했거나 배정된 경우 스킵
             if design_name in assigned_names:
@@ -136,26 +134,15 @@ class CurriculumBuilder:
             # 해당 학기가 아직 생성되지 않았다면 생성
             curriculum.setdefault(sem_key, [])
 
-            # 학점 체크 (21학점 초과하지 않도록)
+            # 종합설계 과목 우선 배정
             current_credits = semester_credit_map[sem_key]
-            if current_credits + credit <= 21:
-                curriculum[sem_key].append((design_name, credit, lec_type))
-                assigned_names.add(design_name)
-                if design_lec:  # 실제 강의 정보가 있는 경우에만 코드 추가
-                    assigned_codes.add(code)
-                semester_credit_map[sem_key] += credit
-                total_credits += credit
-                print(f"[종합설계 배정] {design_name} → {sem_key} ({credit}학점)")
-            else:
-                print(f"[종합설계 경고] {sem_key}에 {design_name} 배정 불가 - 학점 초과 (현재: {current_credits}, 추가: {credit})")
-                # 강제로라도 배정 (졸업요건이므로)
-                curriculum[sem_key].append((design_name, credit, lec_type))
-                assigned_names.add(design_name)
-                if design_lec:
-                    assigned_codes.add(code)
-                semester_credit_map[sem_key] += credit
-                total_credits += credit
-                print(f"[종합설계 강제배정] {design_name} → {sem_key} (학점 초과 무시)")
+            curriculum[sem_key].append((design_name, credit, lec_type))
+            assigned_names.add(design_name)
+            if design_lec:
+                assigned_codes.add(code)
+            semester_credit_map[sem_key] += credit
+            total_credits += credit
+            print(f"[종합설계 우선배정] {design_name} → {sem_key} ({credit}학점, 현재 학기: {semester_credit_map[sem_key]}학점)")
 
         print("2. 종합설계 과목 배정 완료: ")
         log_curriculum_snapshot(curriculum)
@@ -222,7 +209,6 @@ class CurriculumBuilder:
             total_credits += credit_local
             return True
 
-        # 메인 커리큘럼 생성 루프
         while (
                 (graduation_mode and current_semester_index <= 8 and total_credits < total_required_credits) or
                 (not graduation_mode and (len(curriculum) < 8 or current_semester_index <= 18))
@@ -289,7 +275,7 @@ class CurriculumBuilder:
                         if (sem_year < student_grade) or (sem_year == student_grade and sem_term <= student_semester):
                             continue
 
-                        if 18 <= semester_credits + credit <= 21:
+                        if 15 <= semester_credits + credit <= 21:  # 종합설계 배정 후 남은 학점으로
                             curriculum[sem_key].append((name, credit, lec_type))
                             assigned_names.add(name)
                             assigned_codes.add(code)
@@ -336,11 +322,9 @@ class CurriculumBuilder:
                 log_curriculum_snapshot(curriculum)
                 log_total_credits(curriculum)
 
-            # 메인 강의 배정
             for lec in current_lecture_pool:
                 name, credit, lec_type, grade, lec_semester, prereq, _, team_project, code, _ = lec
 
-                # 종합설계 과목은 이미 배정했으므로 스킵
                 if name in design_courses or code in assigned_codes or name in assigned_names:
                     continue
 
@@ -352,6 +336,7 @@ class CurriculumBuilder:
                 if semester_credit_map[semester_key] + credit > 21:
                     overflow_inserted = False
 
+                    # 다른 학기에 배정 시도
                     for gy in range(student_grade, 10):
                         for gs in [1, 2]:
                             if (gy < student_grade) or (gy == student_grade and gs <= student_semester):
@@ -359,6 +344,7 @@ class CurriculumBuilder:
                             overflow_key = f"{gy}학년 {gs}학기"
                             if int(lec_semester) != gs:
                                 continue
+                            # 해당 학기의 종합설계 과목 배정 후 남은 학점 확인
                             if semester_credit_map[overflow_key] + credit <= 21:
                                 curriculum.setdefault(overflow_key, []).append((name, credit, lec_type))
                                 assigned_names.add(name)
