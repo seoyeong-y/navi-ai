@@ -84,7 +84,7 @@ def expand_with_missing_prerequisites(final_lectures, lecture_data, completed_na
 def filter_lecture_data(lecture_data, needed_names):
     return [
         (name, credit, lec_type, grade, semester, prereq, required_know, team_project, code, major)
-        for name, credit, lec_type, grade, semester, prereq, required_know, team_project, code, major, _ in lecture_data
+        for name, credit, lec_type, grade, semester, prereq, required_know, team_project, code, major in lecture_data
         if name in needed_names
     ]
 

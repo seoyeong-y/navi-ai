@@ -52,13 +52,13 @@ class CurriculumCrud:
     # 커리큘럼 강의 저장
     async def save_curri_lectures(self, curri_id: int, lectures: list):
         # 강의 코드 매핑 조회
-        lecture_codes = [lec[7] for lec in lectures if len(lec) > 7 and lec[7]]
+        lecture_codes = [lec[8] for lec in lectures if len(lec) > 8 and lec[8]]
         stmt = select(LectureCode.code, LectureCode.id).where(LectureCode.code.in_(lecture_codes))
         result = await self.db.execute(stmt)
         code_id_map = {row.code: row.id for row in result}
 
         curri_lectures = []
-        for (name, credit, lec_type, grade, semester, _, _, code, _) in lectures:
+        for (name, credit, lec_type, grade, semester, _, _, team_project, code, major) in lectures:
             if code in code_id_map:
                 curri_lecture = CurriLecture(
                     curri_id=curri_id,

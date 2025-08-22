@@ -16,7 +16,7 @@ class LectureCrud:
 
         if lecture:
             return (lecture.name, lecture.credits, lecture.type,
-                    lecture.grade, lecture.semester, '', '', lecture.code, lecture.major)
+                    lecture.grade, lecture.semester, '', '', lecture.team_project, lecture.code, lecture.major)
         return None
 
 
@@ -27,7 +27,7 @@ class LectureCrud:
         lectures = result.scalars().all()
 
         return [(lec.name, lec.credits, lec.type, lec.grade, lec.semester,
-                 '', '', '', lec.code, lec.major, '') for lec in lectures]
+                 '', '', lec.team_project, lec.code, lec.major) for lec in lectures]
 
 
     # 강의 코드-ID 매핑 조회

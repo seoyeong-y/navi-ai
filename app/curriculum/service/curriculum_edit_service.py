@@ -150,7 +150,7 @@ class CurriculumEditService:
         return True
 
     async def insert_lecture_to_curriculum(self, curri_id: int, lecture_info: tuple, grade: str, semester: str) -> bool:
-        name, credits, lec_type, lec_grade, lec_semester, _, _, code, _ = lecture_info
+        name, credits, lec_type, lec_grade, lec_semester, _, _, _, code, _ = lecture_info
 
         final_grade = grade if grade else lec_grade
         final_semester = semester if semester else lec_semester

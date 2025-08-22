@@ -29,7 +29,7 @@ def format_lecture_info_block(final_lectures, lecture_data):
 
     lecture_info_str = "\n".join(
         f"{name} / {credit}학점 / {lec_type} / {grade}학년 / {semester}학기 / {prereq or '없음'} / {required_know or '없음'}"
-        for name, credit, lec_type, grade, semester, prereq, required_know, code, major, _ in lecture_data
+        for name, credit, lec_type, grade, semester, prereq, required_know, team_project, code, major in lecture_data
     )
 
     return lectures_str, lecture_info_str

@@ -192,6 +192,10 @@ class RecommendationService:
                     lecture_list = await self.lecture_crud.get_lecture_list()
                     print(f">>> 전체 강의 수: {len(lecture_list)}")
 
+                    if lecture_list:
+                        print(f">>> lecture_list 첫 번째 항목 길이: {len(lecture_list[0])}")
+                        print(f">>> lecture_list 첫 번째 항목: {lecture_list[0]}")
+
                     student_grade = 3
                     student_semester = 1
 
@@ -206,21 +210,28 @@ class RecommendationService:
 
                     print("final-general: ", general_recommendations)
 
-                    curriculum, total_credits, filtered_lecture_list = await build_final_curriculum(
-                        completed_data=completed_data,
-                        completed_codes=completed_codes,
-                        completed_names=completed_names,
-                        lecture_list=lecture_list,
-                        major_recommendations=major_recommendations,
-                        general_recommendations=general_recommendations,
-                        student_grade=student_grade,
-                        student_semester=student_semester,
-                        major_interest=websocket.scope.get("major_interest", []),
-                        general_interest=websocket.scope.get("general_interest", []),
-                        conditions=websocket.scope.get("conditions", []),
-                        retake_codes=websocket.scope.get("retake_codes", []),
-                        db=self.db
-                    )
+                    try:
+                        curriculum, total_credits, filtered_lecture_list = await build_final_curriculum(
+                            completed_data=completed_data,
+                            completed_codes=completed_codes,
+                            completed_names=completed_names,
+                            lecture_list=lecture_list,
+                            major_recommendations=major_recommendations,
+                            general_recommendations=general_recommendations,
+                            student_grade=student_grade,
+                            student_semester=student_semester,
+                            major_interest=websocket.scope.get("major_interest", []),
+                            general_interest=websocket.scope.get("general_interest", []),
+                            conditions=websocket.scope.get("conditions", []),
+                            retake_codes=websocket.scope.get("retake_codes", []),
+                            db=self.db
+                        )
+                    except Exception as e:
+                        print(f"[build_final_curriculum 에러] {e}")
+                        print(f"[에러 타입] {type(e)}")
+                        import traceback
+                        print(f"[전체 스택 트레이스] {traceback.format_exc()}")
+                        raise e
 
                     print("커리큘럼 설계 완료")
 
@@ -265,9 +276,9 @@ class RecommendationService:
                                 )
 
                                 grade = year.strip()[0]
-                                completed_lecture_list.append((name, credit, lec_type, grade, semester_val, '', '', code, ''))
+                                completed_lecture_list.append((name, credit, lec_type, grade, semester_val, '', '', '', code, ''))
 
-                    lecture_name_to_code = {name: code for name, _, _, _, _, _, _, code, _ in lecture_list}
+                    lecture_name_to_code = {name: code for name, _, _, _, _, _, _, _, code, _ in lecture_list}
 
                     final_lecture_list = []
                     for semester_key, lectures in curriculum.items():
@@ -276,7 +287,7 @@ class RecommendationService:
                         semester = sem.replace("학기", "")
                         for name, credit, lec_type in lectures:
                             code = lecture_name_to_code.get(name, '')
-                            final_lecture_list.append((name, credit, lec_type, grade, semester, '', '', code, ''))
+                            final_lecture_list.append((name, credit, lec_type, grade, semester, '', '', '', code, ''))
 
                     print("save-filter:", filtered_lecture_list)
                     print("save-final:", final_lecture_list)
@@ -499,4 +510,6 @@ class RecommendationService:
 
         except Exception as e:
             print(f"[handle_recommendation_modification 예외] {e}")
+            import traceback
+            print(f"[전체 스택 트레이스] {traceback.format_exc()}")
             return False

@@ -444,7 +444,7 @@ class CurriculumBuilder:
         }
 
         final_filtered_lecture_list = []
-        lecture_name_to_code = {name: code for name, _, _, _, _, _, _, code, _ in lecture_list}
+        lecture_name_to_code = {name: code for name, _, _, _, _, _, _, _, code, _ in lecture_list}
 
         for semester_key, lectures in sorted_curriculum.items():
             match = re.match(r"(\d+)학년 (\d)학기", semester_key)
@@ -455,7 +455,7 @@ class CurriculumBuilder:
             grade, semester = match.groups()
             for name, credit, lec_type in lectures:
                 code = lecture_name_to_code.get(name, '')
-                final_filtered_lecture_list.append((name, credit, lec_type, grade, semester, '', '', code, ''))
+                final_filtered_lecture_list.append((name, credit, lec_type, grade, semester, '', '', '', code, ''))
 
         print("final_filtered:", final_filtered_lecture_list)
         print("sorted:", sorted_curriculum)

@@ -80,18 +80,33 @@ def get_uncompleted_required_lectures(completed_codes, lecture_list, student_gra
     uncompleted_mr = []
     uncompleted_gr = []
 
-    for lecture in lecture_list:
-        name, credit, lec_type, grade, semester, prereq, required_know, team_project, code, major, _ = lecture
+    print(f">>> get_uncompleted_required_lectures 시작")
+    print(f">>> lecture_list 길이: {len(lecture_list)}")
 
-        if code in completed_codes:
-            continue
+    for i, lecture in enumerate(lecture_list):
+        try:
+            # 디버깅: 각 lecture의 길이 확인
+            if len(lecture) != 10:
+                print(f">>> [경고] lecture[{i}] 길이가 {len(lecture)}개: {lecture}")
+                continue
 
-        if int(grade) > student_grade:
-            continue
+            name, credit, lec_type, grade, semester, prereq, required_know, team_project, code, major = lecture
 
-        if lec_type == 'MR':
-            uncompleted_mr.append(name)
-        elif lec_type == 'GR':
-            uncompleted_gr.append(name)
+            if code in completed_codes:
+                continue
+
+            if int(grade) > student_grade:
+                continue
+
+            if lec_type == 'MR':
+                uncompleted_mr.append(name)
+            elif lec_type == 'GR':
+                uncompleted_gr.append(name)
+
+        except ValueError as e:
+            print(f">>> [에러] lecture[{i}] 언패킹 실패: {e}")
+            print(f">>> lecture[{i}] 내용: {lecture}")
+            print(f">>> lecture[{i}] 길이: {len(lecture)}")
+            raise e
 
     return uncompleted_mr, uncompleted_gr
