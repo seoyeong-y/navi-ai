@@ -10,6 +10,7 @@ from app.professor.professor_repository import ProfessorCrud
 from app.utils.format_utils import format_curriculum
 from app.curriculum.service.curriculum_utils import add_extra_lectures
 
+
 class CurriculumBuilder:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -17,24 +18,24 @@ class CurriculumBuilder:
         self.professor_crud = ProfessorCrud(db)
 
     async def build_curriculum(
-        self,
-        completed_data: dict,
-        completed_codes: set,
-        completed_names: set,
-        lectures: list,
-        full_lectures: list,
-        final_recommendations: list,
-        general_recommendations: list,
-        student_grade: int,
-        student_semester: int,
-        required_major_names: list,
-        required_general_names: list,
-        major_interest: list,
-        general_interest: list,
-        total_required_credits: int,
-        lecture_list: list,
-        conditions: dict = None,
-        retake_codes: list = None
+            self,
+            completed_data: dict,
+            completed_codes: set,
+            completed_names: set,
+            lectures: list,
+            full_lectures: list,
+            final_recommendations: list,
+            general_recommendations: list,
+            student_grade: int,
+            student_semester: int,
+            required_major_names: list,
+            required_general_names: list,
+            major_interest: list,
+            general_interest: list,
+            total_required_credits: int,
+            lecture_list: list,
+            conditions: dict = None,
+            retake_codes: list = None
     ) -> dict:
 
         conditions = conditions or []
@@ -71,9 +72,19 @@ class CurriculumBuilder:
         design1 = "종합설계1"
         design2 = "종합설계2"
         design_courses = [design_planning, design1, design2]
-        design_assigned = set()
-        design_lectures = {name: lec for lec in lectures if lec[0] in design_courses for name in [lec[0]]}
 
+        design_lectures = {}
+        for lec in lectures:
+            name = lec[0]
+            if name in design_courses:
+                design_lectures[name] = lec
+
+        for lec in full_lectures:
+            name = lec[0]
+            if name in design_courses and name not in design_lectures:
+                design_lectures[name] = lec
+
+        # 이수 완료 과목 반영
         for semester_key, lec_by_type in completed_data.items():
             curriculum[semester_key] = []
             for lec_type, lec_list in lec_by_type.items():
@@ -85,6 +96,59 @@ class CurriculumBuilder:
         log_curriculum_snapshot(curriculum)
         log_total_credits(curriculum)
 
+        # 종합설계 미리 배정
+        design_schedule = [
+            (3, 2, design_planning),  # 3학년 2학기: 종합설계기획
+            (4, 1, design1),  # 4학년 1학기: 종합설계1
+            (4, 2, design2),  # 4학년 2학기: 종합설계2
+        ]
+
+        assigned_codes = set(completed_codes)
+        assigned_names = set(completed_names)
+        semester_credit_map = defaultdict(int)
+
+        # 기존 커리큘럼 학점 계산
+        for sem_key, lectures_in_sem in curriculum.items():
+            semester_credit_map[sem_key] = sum(c for _, c, _ in lectures_in_sem)
+
+        # 종합설계 과목 강제 배정
+        for design_year, design_sem, design_name in design_schedule:
+            # 이미 이수했거나 배정된 경우 스킵
+            if design_name in assigned_names:
+                print(f"[종합설계] {design_name}은 이미 이수/배정됨 → 스킵")
+                continue
+
+            # 해당 종합설계 과목 정보 찾기
+            design_lec = design_lectures.get(design_name)
+            if not design_lec:
+                print(f"[종합설계 경고] {design_name} 강의 정보를 찾을 수 없음")
+                # 강의 정보가 없어도 기본값으로 추가
+                credit = 3  # 기본 학점
+                lec_type = "ME"  # 기본 타입
+                code = f"DEFAULT_{design_name}"
+            else:
+                name, credit, lec_type, _, _, _, _, _, code, _ = design_lec
+
+            sem_key = f"{design_year}학년 {design_sem}학기"
+
+            # 해당 학기가 아직 생성되지 않았다면 생성
+            curriculum.setdefault(sem_key, [])
+
+            # 종합설계 과목 우선 배정
+            current_credits = semester_credit_map[sem_key]
+            curriculum[sem_key].append((design_name, credit, lec_type))
+            assigned_names.add(design_name)
+            if design_lec:
+                assigned_codes.add(code)
+            semester_credit_map[sem_key] += credit
+            total_credits += credit
+            print(f"[종합설계 우선배정] {design_name} → {sem_key} ({credit}학점, 현재 학기: {semester_credit_map[sem_key]}학점)")
+
+        print("2. 종합설계 과목 배정 완료: ")
+        log_curriculum_snapshot(curriculum)
+        log_total_credits(curriculum)
+
+        # 강의 우선순위 설정
         lecture_priority = {}
         for lec in lectures:
             name, _, lec_type, _, _, _, _, _, code, _ = lec
@@ -94,11 +158,6 @@ class CurriculumBuilder:
                 lecture_priority[name] = 1
             else:
                 lecture_priority[name] = 2
-
-        assigned_codes = set(completed_codes)
-        assigned_names = set(completed_names)
-
-        missing_design_courses = [name for name in design_courses if name not in assigned_names]
 
         deferred_lectures = []
 
@@ -130,7 +189,8 @@ class CurriculumBuilder:
                         parent_stack.add(name_local)
 
                         print(f"[선수 과목 확인] {name_local} → 선수 과목 {req_name} 배정 시도")
-                        success_local = assign_with_prerequisites(prereq_lec, lec_year, lec_semester, lec_sem_key, parent_stack)
+                        success_local = assign_with_prerequisites(prereq_lec, lec_year, lec_semester, lec_sem_key,
+                                                                  parent_stack)
                         parent_stack.remove(name_local)
                         if not success_local:
                             print(f"[선수 과목 배정 성공] {req_name}")
@@ -149,8 +209,6 @@ class CurriculumBuilder:
             total_credits += credit_local
             return True
 
-        semester_credit_map = defaultdict(int)
-
         while (
                 (graduation_mode and current_semester_index <= 8 and total_credits < total_required_credits) or
                 (not graduation_mode and (len(curriculum) < 8 or current_semester_index <= 18))
@@ -159,30 +217,6 @@ class CurriculumBuilder:
             year = (current_semester_index + 1) // 2
             semester = 1 if current_semester_index % 2 else 2
             semester_key = f"{year}학년 {semester}학기"
-
-            reserved_design_semesters = [
-                (3, 2, design_planning),
-                (4, 1, design1),
-                (4, 2, design2),
-            ]
-
-            for gy, gs, design_name in reserved_design_semesters:
-                if design_name in assigned_names:
-                    continue
-                lec = design_lectures.get(design_name)
-                if not lec:
-                    continue
-                name, credit, lec_type, _, _, _, _, _, code, _ = lec
-                sem_key = f"{gy}학년 {gs}학기"
-                curriculum.setdefault(sem_key, [])
-                if semester_credit_map[sem_key] + credit <= 21:
-                    curriculum[sem_key].append((name, credit, lec_type))
-                    assigned_names.add(name)
-                    assigned_codes.add(code)
-                    design_assigned.add(name)
-                    semester_credit_map[sem_key] += credit
-                    total_credits += credit
-                    print(f"[종합설계 강제 배정] {name} → {sem_key}")
 
             if (year < student_grade) or (year == student_grade and semester < student_semester):
                 current_semester_index += 1
@@ -205,9 +239,7 @@ class CurriculumBuilder:
                     filtered_pool.append(lec)
                 current_lecture_pool = filtered_pool
 
-            for sem_key in curriculum:
-                semester_credit_map[sem_key] = sum(c for _, c, _ in curriculum[sem_key])
-
+            # 교양 추천 강의 우선 배정
             priority_semester_keys = [f"{y}학년 {s}학기" for y in range(1, 4) for s in range(1, 3)]
             fallback_semester_keys = [f"{y}학년 {s}학기" for y in range(4, 7) for s in range(1, 3)]
 
@@ -243,7 +275,7 @@ class CurriculumBuilder:
                         if (sem_year < student_grade) or (sem_year == student_grade and sem_term <= student_semester):
                             continue
 
-                        if 18 <= semester_credits + credit <= 21:
+                        if 15 <= semester_credits + credit <= 21:  # 종합설계 배정 후 남은 학점으로
                             curriculum[sem_key].append((name, credit, lec_type))
                             assigned_names.add(name)
                             assigned_codes.add(code)
@@ -254,13 +286,14 @@ class CurriculumBuilder:
                     if assigned:
                         break
 
-            print("2. 종합설계 과목 배정 완료: ")
+            print("3. 교양 추천 강의 배정 완료: ")
             log_curriculum_snapshot(curriculum)
             log_total_credits(curriculum)
 
+            # 재수강 강의 배정
             if retake_mode:
                 for code in retake_codes:
-                    lec = next((l for l in lectures if l[7] == code), None)
+                    lec = next((l for l in lectures if l[8] == code), None)  # 수정: l[7] → l[8]
                     if not lec:
                         continue
                     name, credit, lec_type, grade, semester, _, _, _, _, _ = lec
@@ -277,20 +310,24 @@ class CurriculumBuilder:
                                 curriculum[sem_key].append((name, credit, lec_type))
                                 assigned_names.add(name)
                                 assigned_codes.add(code)
+                                semester_credit_map[sem_key] += credit
+                                total_credits += credit
                                 print(f"[재수강 강의 배정]: {name} → {sem_key}")
                                 break
                         else:
                             continue
                         break
 
-                print("재수강 강의 배정 완료: ")
+                print("4. 재수강 강의 배정 완료: ")
                 log_curriculum_snapshot(curriculum)
                 log_total_credits(curriculum)
 
             for lec in current_lecture_pool:
                 name, credit, lec_type, grade, lec_semester, prereq, _, team_project, code, _ = lec
-                if name in design_courses or code in assigned_codes or name in assigned_names or name in design_assigned:
+
+                if name in design_courses or code in assigned_codes or name in assigned_names:
                     continue
+
                 if int(grade) not in allowed_grades:
                     continue
                 if int(lec_semester) != semester:
@@ -299,6 +336,7 @@ class CurriculumBuilder:
                 if semester_credit_map[semester_key] + credit > 21:
                     overflow_inserted = False
 
+                    # 다른 학기에 배정 시도
                     for gy in range(student_grade, 10):
                         for gs in [1, 2]:
                             if (gy < student_grade) or (gy == student_grade and gs <= student_semester):
@@ -306,6 +344,7 @@ class CurriculumBuilder:
                             overflow_key = f"{gy}학년 {gs}학기"
                             if int(lec_semester) != gs:
                                 continue
+                            # 해당 학기의 종합설계 과목 배정 후 남은 학점 확인
                             if semester_credit_map[overflow_key] + credit <= 21:
                                 curriculum.setdefault(overflow_key, []).append((name, credit, lec_type))
                                 assigned_names.add(name)
@@ -332,10 +371,11 @@ class CurriculumBuilder:
             deferred_lectures = list(next_deferred)
             current_semester_index += 1
 
-            print("3. GPT 추천 강의 배정 완료: ")
+            print("5. GPT 추천 강의 배정 완료: ")
             log_curriculum_snapshot(curriculum)
             log_total_credits(curriculum)
 
+        # 부족한 학점 보완
         all_lectures = sum(curriculum.values(), [])
         current_major = sum(credit for _, credit, lec_type in all_lectures if lec_type in ["MR", "ME"])
         current_general = sum(credit for _, credit, lec_type in all_lectures if lec_type in ["GR", "GE"])
@@ -439,10 +479,12 @@ class CurriculumBuilder:
                     print("더 이상 추가할 강의가 없어 루프를 중단합니다.")
                     break
 
+        # 최종 정렬
         sorted_curriculum = {
             k: curriculum[k] for k in sorted(curriculum.keys(), key=sort_key)
         }
 
+        # 최종 강의 리스트 생성
         final_filtered_lecture_list = []
         lecture_name_to_code = {name: code for name, _, _, _, _, _, _, _, code, _ in lecture_list}
 
@@ -463,7 +505,7 @@ class CurriculumBuilder:
         all_lectures = sum(sorted_curriculum.values(), [])
         total_credits = sum(credit for _, credit, _ in all_lectures)
 
-        print("4. 부족 학점 보완 완료: ")
+        print("6. 부족 학점 보완 완료: ")
         log_curriculum_snapshot(curriculum)
         log_total_credits(curriculum)
 
