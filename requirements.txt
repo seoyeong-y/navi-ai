@@ -8,8 +8,9 @@ sqlalchemy[asyncio]==2.0.23
 aiomysql==0.2.0
 alembic==1.12.1
 
-# OpenAI GPT API - 버전 업데이트
+# OpenAI GPT API
 openai==1.35.0
+httpx==0.27.2
 
 # 환경변수 관리
 python-dotenv==1.0.0
