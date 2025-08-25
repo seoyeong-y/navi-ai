@@ -1,3 +1,4 @@
+import httpx
 from fastapi import WebSocket, WebSocketDisconnect
 import openai
 import json
@@ -18,7 +19,10 @@ from app.curriculum.service.curriculum_manager import CurriculumService
 load_dotenv()
 
 GPT_API_KEY = os.getenv("OPENAI_API_KEY")
-client = openai.AsyncOpenAI(api_key=GPT_API_KEY)
+client = openai.AsyncOpenAI(
+    api_key=GPT_API_KEY,
+    http_client=httpx.AsyncClient()
+)
 
 user_id = 1
 user_curri_id = 40
