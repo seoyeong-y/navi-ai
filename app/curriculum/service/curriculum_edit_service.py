@@ -109,7 +109,7 @@ class CurriculumEditService:
             }))
             return
 
-    async def handle_pending_addition_in_edit_mode(self, websocket: WebSocket, user_input: str, user_id: int):
+    async def handle_pending_addition_in_edit_mode(self, websocket: WebSocket, user_input: str, userId: int):
         curri_id = websocket.scope.get("selected_curri_id")
 
         if not curri_id:

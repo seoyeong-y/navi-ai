@@ -8,9 +8,9 @@ class ChatCrud:
         self.db = db
 
     # 채팅 세션 생성
-    async def create_chat_session(self, user_id: int, session_type: str) -> int:
+    async def create_chat_session(self, userId: int, session_type: str) -> int:
         session = ChatSession(
-            user_id=user_id,
+            userId=userId,
             session_type=session_type,
             start_time=datetime.now()
         )

@@ -177,7 +177,7 @@ class RecommendationService:
 
         return filtered_lectures, interest, completed_codes
 
-    async def handle_recommendation_modification(self, websocket, user_input, final_lectures, completed_names, completed_codes, completed_data, interest, user_id, mode):
+    async def handle_recommendation_modification(self, websocket, user_input, final_lectures, completed_names, completed_codes, completed_data, interest, userId, mode):
         try:
             if await self.gpt_service.is_no_more_modification(user_input):
                 if websocket.scope.get("mode") == "modification_major":
@@ -237,7 +237,7 @@ class RecommendationService:
                     print("커리큘럼 설계 완료")
 
                     curriculum_service = CurriculumService(self.db)
-                    curriculum_name = await curriculum_service.generate_curriculum_name(user_id=user_id)
+                    curriculum_name = await curriculum_service.generate_curriculum_name(userId=userId)
 
                     major_interest = websocket.scope.get("major_interest", [])
                     general_interest = websocket.scope.get("general_interest", [])
@@ -256,7 +256,7 @@ class RecommendationService:
                     conditions_string = encode_conditions(websocket.scope.get("conditions", []))
 
                     curri_id = await self.curriculum_crud.save_curriculum(
-                        user_id=user_id,
+                        userId=userId,
                         name=curriculum_name,
                         total_credits=total_credits,
                         description=description,

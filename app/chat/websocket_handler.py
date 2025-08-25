@@ -24,7 +24,7 @@ client = openai.AsyncOpenAI(
     http_client=httpx.AsyncClient()
 )
 
-user_id = 1
+userId = 1
 user_curri_id = 40
 
 
@@ -44,7 +44,7 @@ class WebSocketHandler:
     async def handle_websocket(self, websocket: WebSocket):
         await websocket.accept()
 
-        session_id = await self.chat_crud.create_chat_session(user_id=user_id, session_type="curriculum")
+        session_id = await self.chat_crud.create_chat_session(userId=userId, session_type="curriculum")
         websocket.scope["session_id"] = session_id
 
         websocket.scope["view_mode"] = "list"
@@ -75,7 +75,7 @@ class WebSocketHandler:
 
                     if mode == "idle":
                         if "pending_edit_input" in websocket.scope:
-                            curri_names = await self.curriculum_crud.get_curriculum_names_by_user(user_id)
+                            curri_names = await self.curriculum_crud.get_curriculum_names_by_user(userId)
                             curri_name = await self.gpt_service.extract_curriculum_name_for_deletion(user_input,
                                                                                                      curri_names)
 
@@ -86,7 +86,7 @@ class WebSocketHandler:
                                                                    message=message)
                                 continue
 
-                            curri_id = await self.curriculum_crud.get_curriculum_id_by_name(user_id, curri_name)
+                            curri_id = await self.curriculum_crud.get_curriculum_id_by_name(userId, curri_name)
                             websocket.scope["selected_curri_id"] = curri_id
 
                             restored_input = websocket.scope["pending_edit_input"]
@@ -94,7 +94,7 @@ class WebSocketHandler:
                             user_input = restored_input
 
                         if "waiting_for_curri_selection" in websocket.scope:
-                            curri_id = await self.gpt_service.extract_curriculum_id(user_input, user_id)
+                            curri_id = await self.gpt_service.extract_curriculum_id(user_input, userId)
                             if curri_id:
                                 websocket.scope["selected_curri_id"] = curri_id
                                 pending_input = websocket.scope["waiting_for_curri_selection"]["pending_input"]
@@ -113,7 +113,7 @@ class WebSocketHandler:
 
                         if "pending_addition" in websocket.scope:
                             await self.curriculum_edit_service.handle_pending_addition_in_edit_mode(websocket,
-                                                                                                    user_input, user_id)
+                                                                                                    user_input, userId)
                             continue
 
                         if await self.gpt_service.is_curriculum_request(user_input):
@@ -211,7 +211,7 @@ class WebSocketHandler:
                     elif mode == "modification_major":
                         result = await self.recommendation_service.handle_recommendation_modification(
                             websocket, user_input, major_lectures,
-                            completed_names, completed_codes, completed_data, major_interest, user_id, mode
+                            completed_names, completed_codes, completed_data, major_interest, userId, mode
                         )
                         if result == "next_general":
                             websocket.scope["final_major_lectures"] = major_lectures
@@ -280,7 +280,7 @@ class WebSocketHandler:
                     elif mode == "modification_general":
                         result = await self.recommendation_service.handle_recommendation_modification(
                             websocket, user_input, general_lectures,
-                            completed_names, completed_codes, completed_data, general_interest, user_id, mode
+                            completed_names, completed_codes, completed_data, general_interest, userId, mode
                         )
                         websocket.scope["final_general_lectures"] = general_lectures
 

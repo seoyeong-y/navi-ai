@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean, func
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 from datetime import datetime
@@ -8,11 +8,24 @@ class Curriculum(Base):
     __tablename__ = "curriculums"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False)
+    userId = Column(Integer, nullable=False)
     name = Column(String(255), nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.now)
+
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=func.now()
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now()
+    )
+
     total_credits = Column(Integer, nullable=False)
     description = Column(Text)
+    is_default = Column(Boolean, nullable=False, default=False)
     conditions = Column(String(20))
 
     lectures = relationship("CurriLecture", back_populates="curriculum")

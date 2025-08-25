@@ -39,8 +39,8 @@ class CurriculumService:
                 major_required_credits_earned, completed_lecture_codes)
 
     # 커리큘럼 이름 생성 함수
-    async def generate_curriculum_name(self, user_id: int) -> str:
-        existing_names = await self.curriculum_repo.get_curriculum_names_by_user(user_id)
+    async def generate_curriculum_name(self, userId: int) -> str:
+        existing_names = await self.curriculum_repo.get_curriculum_names_by_user(userId)
         existing_names_set = set(existing_names)
 
         # 커리큘럼 숫자 중 가장 작은 빈 번호 찾기

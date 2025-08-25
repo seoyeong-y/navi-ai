@@ -12,15 +12,15 @@ class CurriculumCrud:
         self.db = db
 
     # 사용자의 커리큘럼 이름 목록 조회
-    async def get_curriculum_names_by_user(self, user_id: int) -> List[str]:
-        stmt = select(Curriculum.name).where(Curriculum.user_id == user_id)
+    async def get_curriculum_names_by_user(self, userId: int) -> List[str]:
+        stmt = select(Curriculum.name).where(Curriculum.userId == userId)
         result = await self.db.execute(stmt)
         return [row.name for row in result]
 
     # 커리큘럼 이름으로 ID 조회
-    async def get_curriculum_id_by_name(self, user_id: int, name: str) -> Optional[int]:
+    async def get_curriculum_id_by_name(self, userId: int, name: str) -> Optional[int]:
         stmt = select(Curriculum.id).where(
-            Curriculum.user_id == user_id,
+            Curriculum.userId == userId,
             Curriculum.name == name
         )
         result = await self.db.execute(stmt)
@@ -36,11 +36,10 @@ class CurriculumCrud:
         return await self.db.get(CurriLecture, curri_lecture_id)
 
     # 커리큘럼 저장
-    async def save_curriculum(self, user_id: int, name: str, total_credits: int, description: str = "", conditions: str = "") -> int:
+    async def save_curriculum(self, userId: int, name: str, total_credits: int, description: str = "", conditions: str = "") -> int:
         curriculum = Curriculum(
-            user_id=user_id,
+            userId=userId,
             name=name,
-            created_at=datetime.now(),
             total_credits=total_credits,
             description=description,
             conditions=conditions
@@ -76,9 +75,9 @@ class CurriculumCrud:
         await self.db.commit()
 
     # 커리큘럼 이름으로 삭제
-    async def delete_curriculum_by_name(self, user_id: int, curriculum_name: str) -> bool:
+    async def delete_curriculum_by_name(self, userId: int, curriculum_name: str) -> bool:
         stmt = select(Curriculum).where(
-            Curriculum.user_id == user_id,
+            Curriculum.userId == userId,
             Curriculum.name == curriculum_name
         )
         result = await self.db.execute(stmt)
@@ -106,10 +105,12 @@ class CurriculumCrud:
 
         return {
             "id": curriculum.id,
-            "user_id": curriculum.user_id,
+            "userId": curriculum.userId,
             "name": curriculum.name,
             "created_at": curriculum.created_at,
+            "updated_at": curriculum.updated_at,
             "total_credits": curriculum.total_credits,
             "description": curriculum.description,
+            "is_default": curriculum.is_default,
             "conditions": curriculum.conditions
         }

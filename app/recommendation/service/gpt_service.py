@@ -288,6 +288,7 @@ class GPTService:
         - "응 괜찮아"
         - "그만"
         - "더 이상 없어"
+        - "아니"
 
         [계속 예시]
         - "딥러닝 삭제해줘"
@@ -549,12 +550,12 @@ class GPTService:
             return []
 
     # 커리큘럼 ID 추출
-    async def extract_curriculum_id(self, user_input: str, user_id: int) -> int:
+    async def extract_curriculum_id(self, user_input: str, userId: int) -> int:
         if not self.db:
             return None
 
         try:
-            stmt = select(Curriculum.id, Curriculum.name).where(Curriculum.user_id == user_id)
+            stmt = select(Curriculum.id, Curriculum.name).where(Curriculum.userId == userId)
             result = await self.db.execute(stmt)
 
             for curri_id, name in result:
