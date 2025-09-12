@@ -14,7 +14,7 @@ def calculate_credits(lecture_data: Dict) -> Tuple[int, int, int, int, int, Set[
 
     for semester, lectures in lecture_data.items():
         for lecture_type, lectures_list in lectures.items():
-            for code, name, credit, _ in lectures_list:
+            for code, name, credit, _, status in lectures_list:
                 total_credits += credit
                 completed_lecture_codes.add(code)
                 if lecture_type in ("전선", "전필"):
