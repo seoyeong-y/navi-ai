@@ -8,34 +8,32 @@ def parse_semester_key(key: str):
     except (IndexError, ValueError):
         return 99, 99
 
-def build_semester_mapping(all_semesters):
-    sorted_semesters = sorted(all_semesters, key=parse_semester_key)
 
+def build_semester_mapping(all_semesters: set, enrollment_year: int):
     mapping = {}
-    current_grade = 1
-    prev_year, prev_sem = None, None
+    sorted_semesters = sorted(all_semesters)
 
+    counter = 0
     for sem in sorted_semesters:
-        year, sem_num = sem.split("-")
-        year = int(year)
-        sem_num = int(sem_num.replace("학기", "").strip())
-
-        if prev_year is None:
-            current_grade = 1
+        year_str, term_str = sem.split("-")
+        if term_str == "1학기":
+            sem_num = 1
+        elif term_str == "2학기":
+            sem_num = 2
+        elif term_str == "여름학기":
+            sem_num = "S"
+        elif term_str == "겨울학기":
+            sem_num = "W"
         else:
-            if year == prev_year:
-                # 같은 연도면 학년 유지
-                pass
-            else:
-                # 연도가 바뀐 경우
-                if prev_sem == 2 and sem_num == 1:
-                    current_grade += 1  # 2학기 → 다음해 1학기 → 학년 증가
-                else:
-                    # 휴학으로 비어있는 경우 (ex. 2023-1 → 2024-2)
-                    pass  # 학년 그대로
+            sem_num = "?"
 
-        mapping[sem] = (str(current_grade), str(sem_num))
-        prev_year, prev_sem = year, sem_num
+        if sem_num in (1, 2):
+            counter += 1
+            grade = (counter + 1) // 2
+        else:
+            grade = (counter + 1) // 2
+
+        mapping[sem] = (grade, sem_num)
 
     return mapping
 

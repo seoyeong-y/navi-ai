@@ -91,7 +91,7 @@ class CurriculumBuilder:
         for semester_key, lec_by_type in completed_data.items():
             curriculum[semester_key] = []
             for lec_type, lec_list in lec_by_type.items():
-                for _, name, credit, _ in lec_list:
+                for _, name, credit, _, status in lec_list:
                     curriculum[semester_key].append((name, credit, lec_type))
                     total_credits += credit
 
@@ -527,7 +527,7 @@ class CurriculumBuilder:
             grade, semester = match.groups()
             for name, credit, lec_type in lectures:
                 code = lecture_name_to_code.get(name, '')
-                final_filtered_lecture_list.append((name, credit, lec_type, grade, semester, '', '', '', code, ''))
+                final_filtered_lecture_list.append((name, credit, lec_type, grade, semester, '', '', '', code, '', ''))
 
         print("final_filtered:", final_filtered_lecture_list)
         print("sorted:", sorted_curriculum)

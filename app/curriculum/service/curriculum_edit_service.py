@@ -174,7 +174,8 @@ class CurriculumEditService:
             credits=credits,
             semester=final_semester,
             type=lec_type,
-            grade=final_grade
+            grade=final_grade,
+            status="planned"
         )
 
         try:

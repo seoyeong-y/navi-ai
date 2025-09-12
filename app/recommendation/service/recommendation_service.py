@@ -30,9 +30,19 @@ class RecommendationService:
 
         if unclear:
             message = "표현이 불분명하여 기본 추천을 진행합니다."
+            await self.chat_crud.save_chat_log(
+                session_id=websocket.scope["session_id"],
+                chat_type="B",
+                message=message
+            )
             await websocket.send_text(json.dumps({"message": message}))
 
         message = "전공 추천 강의 리스트를 생성 중입니다. \n잠시만 기다려 주세요."
+        await self.chat_crud.save_chat_log(
+            session_id=websocket.scope["session_id"],
+            chat_type="B",
+            message=message
+        )
         await websocket.send_text(json.dumps({"message": message}))
 
         (total_credits, major_credits, general_credits, field_practice_credits,
@@ -42,7 +52,7 @@ class RecommendationService:
 
         for semester in completed_data.values():
             for lectures in semester.values():
-                for _, name, _, _ in lectures:
+                for _, name, _, _, status in lectures:
                     completed_names.add(name)
 
         major_lectures = await self.lecture_service.fetch_major_lectures()
@@ -106,9 +116,19 @@ class RecommendationService:
 
         if unclear:
             message = "표현이 불분명하여 기본 추천을 진행합니다."
+            await self.chat_crud.save_chat_log(
+                session_id=websocket.scope["session_id"],
+                chat_type="B",
+                message=message
+            )
             await websocket.send_text(json.dumps({"message": message}))
 
         message = "교양 추천 강의 리스트를 생성 중입니다. \n잠시만 기다려 주세요."
+        await self.chat_crud.save_chat_log(
+            session_id=websocket.scope["session_id"],
+            chat_type="B",
+            message=message
+        )
         await websocket.send_text(json.dumps({"message": message}))
 
         (total_credits, major_credits, general_credits, field_practice_credits,
@@ -118,7 +138,7 @@ class RecommendationService:
 
         for semester in completed_data.values():
             for lectures in semester.values():
-                for _, name, _, _ in lectures:
+                for _, name, _, _, status in lectures:
                     completed_names.add(name)
 
         general_lectures = await self.lecture_service.fetch_general_lectures()
@@ -187,6 +207,11 @@ class RecommendationService:
 
                     print("커리큘럼 생성 시작")
                     message = "추천 커리큘럼을 생성 중입니다. \n잠시만 기다려 주세요."
+                    await self.chat_crud.save_chat_log(
+                        session_id=websocket.scope["session_id"],
+                        chat_type="B",
+                        message=message
+                    )
                     await websocket.send_text(json.dumps({"message": message}))
 
                     print("get_lecture_list() 호출 준비")
@@ -203,7 +228,7 @@ class RecommendationService:
                     completed_names = set()
                     for semester in completed_data.values():
                         for lectures in semester.values():
-                            for _, name, _, _ in lectures:
+                            for _, name, _, _, status in lectures:
                                 completed_names.add(name)
 
                     major_recommendations = websocket.scope.get("final_major_lectures", [])
@@ -268,7 +293,7 @@ class RecommendationService:
                         year, sem = semester.split()
                         semester_val = '1' if sem == "1학기" else '2'
                         for type_key, lec_list in types.items():
-                            for code, name, credit, _ in lec_list:
+                            for code, name, credit, record_grade, status in lec_list:
                                 lec_type = (
                                     'GR' if type_key in ['교필', 'GR'] else
                                     'GE' if type_key in ['교선', 'GE'] else
@@ -279,7 +304,7 @@ class RecommendationService:
                                 )
 
                                 grade = year.strip()[0]
-                                completed_lecture_list.append((name, credit, lec_type, grade, semester_val, '', '', '', code, ''))
+                                completed_lecture_list.append((name, credit, lec_type, grade, semester_val, '', '', '', code, '', status))
 
                     lecture_name_to_code = {name: code for name, _, _, _, _, _, _, _, code, _ in lecture_list}
 
@@ -288,9 +313,16 @@ class RecommendationService:
                         year, sem = semester_key.split("학년 ")
                         grade = year.strip()[0]
                         semester = sem.replace("학기", "")
+
                         for name, credit, lec_type in lectures:
                             code = lecture_name_to_code.get(name, '')
-                            final_lecture_list.append((name, credit, lec_type, grade, semester, '', '', '', code, ''))
+
+                            status = "planned"
+
+                            if int(grade) == student_grade and int(semester) == student_semester:
+                                status = "current"
+
+                            final_lecture_list.append((name, credit, lec_type, grade, semester, '', '', '', code, '', status))
 
                     print("save-filter:", filtered_lecture_list)
                     print("save-final:", final_lecture_list)
@@ -338,6 +370,12 @@ class RecommendationService:
                     for semester in sorted(semester_totals.keys(),
                                            key=lambda k: (int(k.split("학년")[0]), int(k.split("학기")[0][-1]))):
                         print(f"- {semester}: {semester_totals[semester]}학점")
+
+                    await self.chat_crud.save_chat_log(
+                        session_id=websocket.scope["session_id"],
+                        chat_type="B",
+                        message=summary_message
+                    )
 
                     await websocket.send_text(json.dumps({
                         "message": summary_message,
