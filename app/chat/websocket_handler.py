@@ -4,6 +4,7 @@ import openai
 import json
 import os
 from dotenv import load_dotenv
+from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.chat.chat_repository import ChatCrud
 from app.curriculum.curriculum_repository import CurriculumCrud
@@ -13,7 +14,7 @@ from app.professor.professor_repository import ProfessorCrud
 from app.recommendation.service.gpt_service import GPTService
 from app.recommendation.service.recommendation_service import RecommendationService
 from app.curriculum.service.curriculum_edit_service import CurriculumEditService
-from app.utils.completed_data import completed_data
+from app.utils.completed_data import get_completed_data
 from app.curriculum.service.curriculum_manager import CurriculumService
 
 load_dotenv()
@@ -24,9 +25,8 @@ client = openai.AsyncOpenAI(
     http_client=httpx.AsyncClient()
 )
 
-userId = 1
-user_curri_id = 40
-
+SECRET_KEY = os.getenv("JWT_SECRET", "your_jwt_secret")
+ALGORITHM = "HS256"
 
 class WebSocketHandler:
     def __init__(self, db: AsyncSession):
@@ -42,13 +42,36 @@ class WebSocketHandler:
         self.curriculum_service = CurriculumService(db)
 
     async def handle_websocket(self, websocket: WebSocket):
+        token = websocket.query_params.get("token")
+        if not token:
+            await websocket.close(code=4001)
+            return
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            userId = int(payload.get("userId"))
+        except JWTError:
+            await websocket.close(code=4002)
+            return
+
         await websocket.accept()
 
-        session_id = await self.chat_crud.create_chat_session(userId=userId, session_type="curriculum")
-        websocket.scope["session_id"] = session_id
+        existing_session = await self.chat_crud.get_latest_session_by_user(userId)
+        if existing_session and existing_session.end_time is None:
+            session_id = existing_session.id
+        else:
+            session_id = await self.chat_crud.create_chat_session(
+                userId=userId, session_type="curriculum"
+            )
 
+        websocket.scope["session_id"] = session_id
         websocket.scope["view_mode"] = "list"
         websocket.scope["selected_curri_id"] = None
+
+        await websocket.send_text(json.dumps({
+            "type": "session",
+            "sessionId": session_id
+        }))
 
         mode = "idle"
         major_lectures = []
@@ -57,12 +80,15 @@ class WebSocketHandler:
         general_interest = None
         completed_codes = set()
         completed_names = set()
+        completed_data = await get_completed_data(self.db, userId)
 
         try:
             while True:
                 try:
                     print(">>> 메시지 수신 대기 중")
                     user_input = await websocket.receive_text()
+                    if not user_input.strip():
+                        continue
                     print(f"[입력 수신] {user_input}")
 
                     try:
@@ -70,7 +96,8 @@ class WebSocketHandler:
                     except Exception as e:
                         print(f"[사용자 메시지 저장 실패] {e}")
 
-                    if user_input.strip() == "__ping__":
+                    if user_input.strip() in ["__ping__", "init"]:
+                        print(f"[DEBUG] Init/Ping received for userId={userId}, 응답 전송 안 함")
                         continue
 
                     if mode == "idle":
@@ -188,7 +215,7 @@ class WebSocketHandler:
 
                     elif mode == "waiting_major_interest":
                         major_lectures, major_interest, completed_codes = await self.recommendation_service.handle_major_interest_input(
-                            client, websocket, user_input, completed_names, session_id
+                            client, websocket, user_input, completed_names, session_id, completed_data
                         )
 
                         if not major_lectures:
@@ -257,7 +284,7 @@ class WebSocketHandler:
 
                     elif mode == "waiting_general_interest":
                         general_lectures, general_interest, completed_codes = await self.recommendation_service.handle_general_interest_input(
-                            client, websocket, user_input, completed_names, session_id
+                            client, websocket, user_input, completed_names, session_id, completed_data
                         )
 
                         if not general_lectures:

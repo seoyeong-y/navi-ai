@@ -131,18 +131,26 @@ class GPTService:
         )
 
         text = response.choices[0].message.content.strip()
-        match = re.search(r"\{(?:[^{}]|(?R))*}", text)
 
-        if not match:
-            print(f"JSON 패턴 매칭 실패: {text}")
-            return [], []
-
-        json_text = match.group()
+        # 더 간단한 JSON 패턴 매칭 사용
         try:
-            result = json.loads(json_text)
-            return result.get("add", []), result.get("remove", [])
-        except json.JSONDecodeError:
-            print(f"JSON 디코딩 실패: {json_text}")
+            # 중괄호로 둘러싸인 JSON 찾기
+            start = text.find('{')
+            end = text.rfind('}') + 1
+
+            if start != -1 and end > start:
+                json_text = text[start:end]
+                result = json.loads(json_text)
+                return result.get("add", []), result.get("remove", [])
+            else:
+                print(f"JSON 패턴을 찾을 수 없음: {text}")
+                return [], []
+
+        except json.JSONDecodeError as e:
+            print(f"JSON 디코딩 실패: {text}, 오류: {e}")
+            return [], []
+        except Exception as e:
+            print(f"예상치 못한 오류: {e}")
             return [], []
 
     # 삭제된 강의 제외 추천 판단
