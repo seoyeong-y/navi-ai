@@ -13,6 +13,7 @@ class LectureCode(Base):
     lecture_objectives = Column(Text)
 
     recent_lectures = relationship("RecentLecture", back_populates="lecture_code")
+    curri_lectures = relationship("CurriLecture", back_populates="lecture_code")
 
 
 class RecentLecture(Base):
@@ -44,7 +45,7 @@ class Lectures(Base):
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(50), nullable=False)
     name = Column(String(255), nullable=False)
-    professor_id = Column(Integer, ForeignKey("professors.id"))
+    professor_id = Column(Integer, ForeignKey("professor.id"))
     credits = Column(Integer, nullable=False)
     type = Column(String(10))
     grade = Column(String(10))

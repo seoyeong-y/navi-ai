@@ -1,3 +1,8 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.professor.professor_models import PreferredProfessor, Professor
+from typing import List, Dict
+
 total_graduation_credits = 140
 major_required_credits = 75
 general_required_credits = 42
@@ -13,15 +18,6 @@ GRADE_POINT = {
     'F': 0
 }
 
-preferred_professors = [
-    {"id": 124, "name": "이상호"},
-    {"id": 125, "name": "최종필"},
-    {"id": 114, "name": "박정민"},
-    {"id": 25, "name": "전혜현"},
-    {"id": 14, "name": "이지은"},
-    {"id": 51, "name": "김준성"}
-]
-
 CONDITION_CODES = {
     'graduation': 'G',
     'no_team_project': 'T',
@@ -35,3 +31,24 @@ CONDITION_NAMES = {
     'P': '선호 교수',
     'R': '재수강 포함'
 }
+
+async def get_preferred_professors(db: AsyncSession, user_id: int) -> List[Dict]:
+    result = await db.execute(
+        select(
+            PreferredProfessor.id,
+            Professor.id,
+            Professor.name
+        )
+        .join(Professor, PreferredProfessor.professor_id == Professor.id)
+        .where(PreferredProfessor.user_id == user_id)
+    )
+    rows = result.fetchall()
+
+    return [
+        {
+            "preferred_id": pref_id,
+            "professor_id": prof_id,
+            "name": name
+        }
+        for pref_id, prof_id, name in rows
+    ]

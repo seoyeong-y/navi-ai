@@ -1,6 +1,5 @@
 from typing import Dict, Tuple, Set
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.utils.completed_data import completed_data
 from app.curriculum.curriculum_repository import CurriculumCrud
 
 
@@ -11,9 +10,6 @@ class CurriculumService:
 
     # 학점 계산 함수
     def calculate_credits(self, lecture_data: Dict = None) -> Tuple[int, int, int, int, int, Set[str]]:
-        if lecture_data is None:
-            lecture_data = completed_data
-
         total_credits = 0
         major_credits = 0
         general_credits = 0

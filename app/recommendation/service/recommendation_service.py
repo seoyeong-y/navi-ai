@@ -22,7 +22,7 @@ class RecommendationService:
         self.chat_crud = ChatCrud(db)
         self.gpt_service = GPTService(db)  # DB 세션 주입
 
-    async def handle_major_interest_input(self, client, websocket, user_input, completed_names, session_id):
+    async def handle_major_interest_input(self, client, websocket, user_input, completed_names, session_id, completed_data):
         resolved, unclear = await self.gpt_service.resolve_unclear_interest(user_input)
         interest = resolved
         websocket.scope["major_interest"] = interest
@@ -98,7 +98,7 @@ class RecommendationService:
 
         return filtered_lectures, interest, completed_codes
 
-    async def handle_general_interest_input(self, client, websocket, user_input, completed_names, session_id):
+    async def handle_general_interest_input(self, client, websocket, user_input, completed_names, session_id, completed_data):
         resolved, unclear = await self.gpt_service.resolve_unclear_interest(user_input)
         interest = resolved
         websocket.scope["general_interest"] = interest

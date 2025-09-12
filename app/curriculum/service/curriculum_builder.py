@@ -3,7 +3,7 @@ import asyncio
 from typing import Tuple, Dict, List, Set
 from collections import defaultdict
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.utils.completed_data import completed_data
+from app.utils.completed_data import get_completed_data
 from app.core.constants import *
 from app.lecture.lecture_repository import LectureCrud
 from app.professor.professor_repository import ProfessorCrud

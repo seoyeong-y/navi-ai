@@ -1,5 +1,4 @@
 from typing import Tuple, Dict, List, Set
-from app.utils.completed_data import completed_data
 from app.core.constants import *
 from app.recommendation.service.gpt_service import GPTService
 from app.professor.professor_repository import ProfessorCrud
@@ -97,7 +96,8 @@ async def add_extra_lectures(
     used_names,
     student_grade,
     student_semester,
-    conditions=None
+    conditions=None,
+    preferred_professors=None
 ):
     added = []
 
