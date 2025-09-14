@@ -226,6 +226,13 @@ class CurriculumBuilder:
                 current_semester_index += 1
                 continue
 
+            current_semester_key = f"{year}학년 {semester}학기"
+            if (year == student_grade and semester == student_semester
+                    and current_semester_key in completed_data
+                    and any(completed_data[current_semester_key].values())):
+                current_semester_index += 1
+                continue
+
             allowed_grades = [g for g in range(1, year + 1)]
             curriculum.setdefault(semester_key, [])
             semester_credits = semester_credit_map[semester_key]
@@ -276,7 +283,7 @@ class CurriculumBuilder:
                         if total_credits >= total_graduation_credits or sem_year >= 5:
                             continue
 
-                        if (sem_year < student_grade) or (sem_year == student_grade and sem_term <= student_semester):
+                        if (sem_year < student_grade) or (sem_year == student_grade and sem_term < student_semester):
                             continue
 
                         if 15 <= semester_credits + credit <= 21:  # 종합설계 배정 후 남은 학점으로
@@ -318,7 +325,7 @@ class CurriculumBuilder:
                     for gy in range(student_grade, 10):
                         for gs in [1, 2]:
                             # 현재 학기보다 이후 학기에만 배정
-                            if (gy < student_grade) or (gy == student_grade and gs <= student_semester):
+                            if (gy < student_grade) or (gy == student_grade and gs < student_semester):
                                 continue
 
                             # 원래 강의의 개설 학기와 맞춰서 배정
@@ -369,7 +376,7 @@ class CurriculumBuilder:
                     # 다른 학기에 배정 시도
                     for gy in range(student_grade, 10):
                         for gs in [1, 2]:
-                            if (gy < student_grade) or (gy == student_grade and gs <= student_semester):
+                            if (gy < student_grade) or (gy == student_grade and gs < student_semester):
                                 continue
                             overflow_key = f"{gy}학년 {gs}학기"
                             if int(lec_semester) != gs:

@@ -141,7 +141,7 @@ async def add_extra_lectures(
                and l[4] != '1'
                and (
                        (str(l[5]) == "1" and str(l[8]) == "2025") or
-                       (str(l[5]) == "2" and str(l[8]) == "2024")
+                       (str(l[5]) == "2" and str(l[8]) == "2025")
                )
         ]
 

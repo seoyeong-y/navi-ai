@@ -12,6 +12,7 @@ from collections import defaultdict
 from app.curriculum.service.curriculum_manager import CurriculumService
 from app.curriculum.service.curriculum_final_builder import build_final_curriculum
 from app.utils.condition_utils import encode_conditions
+from app.user.user_repository import UserCrud
 
 class RecommendationService:
     def __init__(self, db: AsyncSession):
@@ -20,7 +21,8 @@ class RecommendationService:
         self.lecture_service = LectureService(db)
         self.curriculum_crud = CurriculumCrud(db)
         self.chat_crud = ChatCrud(db)
-        self.gpt_service = GPTService(db)  # DB 세션 주입
+        self.gpt_service = GPTService(db)
+        self.user_crud = UserCrud(db)
 
     async def handle_major_interest_input(self, client, websocket, user_input, completed_names, session_id, completed_data):
         resolved, unclear = await self.gpt_service.resolve_unclear_interest(user_input)
@@ -222,8 +224,15 @@ class RecommendationService:
                         print(f">>> lecture_list 첫 번째 항목 길이: {len(lecture_list[0])}")
                         print(f">>> lecture_list 첫 번째 항목: {lecture_list[0]}")
 
-                    student_grade = 3
-                    student_semester = 1
+                    user_profile = await self.user_crud.get_user_profile(userId)
+                    if user_profile:
+                        student_grade = user_profile.grade or 1
+                        student_semester = user_profile.semester or 1
+                    else:
+                        student_grade = 1
+                        student_semester = 1
+
+                    print(f"[현재 학기 설정] {student_grade}학년 {student_semester}학기 (userId={userId})")
 
                     completed_names = set()
                     for semester in completed_data.values():
