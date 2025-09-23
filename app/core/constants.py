@@ -3,9 +3,6 @@ from sqlalchemy import select
 from app.professor.professor_models import PreferredProfessor, Professor
 from typing import List, Dict
 
-total_graduation_credits = 140
-major_required_credits = 75
-general_required_credits = 42
 field_practice_required = 1
 major_required_lectures = 33
 general_required_lectures = 13

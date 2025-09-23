@@ -30,6 +30,8 @@ class CurriculumBuilder:
             major_interest: list,
             general_interest: list,
             total_required_credits: int,
+            major_required_credits: int,
+            general_required_credits: int,
             lecture_list: list,
             conditions: dict = None,
             retake_codes: list = None
@@ -792,11 +794,11 @@ class CurriculumBuilder:
                 total_added_major += credit
                 print(f"[전공 보완] {name} -> {sem_key} ({credit}학점), 남은 학점: {needed_major - total_added_major}")
 
-        if needed_general > 0 and total_credits < total_graduation_credits:
+        if needed_general > 0 and total_credits < total_required_credits:
             print("[교양 강의 추가 보완 중]")
             total_added_general = 0
 
-            while total_added_general < needed_general and total_credits < total_graduation_credits + 3:
+            while total_added_general < needed_general and total_credits < total_required_credits + 3:
                 general_pool = [
                     l for l in full_lectures
                     if l[0] in leftover_general

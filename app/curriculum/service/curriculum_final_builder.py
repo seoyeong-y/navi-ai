@@ -1,4 +1,4 @@
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.graduation_repository import GraduationRequirementCrud
 from app.curriculum.service.curriculum_utils import expand_with_missing_prerequisites, filter_lecture_data
 from app.curriculum.service.curriculum_builder import CurriculumBuilder
 from app.lecture.lecture_service import LectureService
@@ -13,6 +13,7 @@ class CurriculumFinalBuilder:
 
 
 async def build_final_curriculum(
+        student_id: str,
         completed_data,
         completed_codes,
         completed_names,
@@ -53,6 +54,14 @@ async def build_final_curriculum(
     print(f">>> 설계에 포함될 강의 수: {len(filtered_lecture_list)}")
     print(f">>> 설계에 포함될 강의 목록: {filtered_lecture_list}")
 
+    grad_crud = GraduationRequirementCrud(db)
+    requirement = await grad_crud.get_requirement_by_student_id(student_id)
+
+    print(">>> 졸업 요건 조회 완료")
+    print(f"총 이수 학점 요건: {requirement.total_credits}")
+    print(f"전공 학점 요건: {requirement.major}")
+    print(f"교양 학점 요건: {requirement.liberal_arts}")
+
     curriculum, total_credits, filtered_lecture_list = await final_builder.curriculum_builder.build_curriculum(
         completed_data=completed_data,
         completed_codes=completed_codes,
@@ -67,7 +76,9 @@ async def build_final_curriculum(
         required_general_names=uncompleted_gr,
         major_interest=major_interest,
         general_interest=general_interest,
-        total_required_credits=total_graduation_credits,
+        total_required_credits=requirement.total_credits,
+        major_required_credits=requirement.major,
+        general_required_credits=requirement.liberal_arts,
         lecture_list=lecture_list,
         conditions=conditions,
         retake_codes=retake_codes
