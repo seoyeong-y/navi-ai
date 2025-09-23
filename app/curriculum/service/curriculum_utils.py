@@ -2,7 +2,6 @@ from typing import Tuple, Dict, List, Set
 from app.core.constants import *
 from app.recommendation.service.gpt_service import GPTService
 from app.professor.professor_repository import ProfessorCrud
-from sqlalchemy.ext.asyncio import AsyncSession
 
 def calculate_credits(lecture_data: Dict) -> Tuple[int, int, int, int, int, Set[str]]:
     total_credits = 0
@@ -34,28 +33,29 @@ def check_graduation_requirements(
     major_credits: int,
     general_credits: int,
     field_practice_credits: int,
-    major_required_credits_earned: int
+    major_required_credits_earned: int,
+    requirement
 ) -> None:
-    print(f"총 학점: {total_credits} / {total_graduation_credits}")
-    print(f"전공 학점: {major_credits} / {major_required_credits}")
-    print(f"교양 학점: {general_credits} / {general_required_credits}")
-    print(f"현장실습: {field_practice_credits} / {field_practice_required}")
-    print(f"전공 필수 과목 학점: {major_required_credits_earned} / {major_required_lectures}")
+    print(f"총 학점: {total_credits} / {requirement.total_credits}")
+    print(f"전공 학점: {major_credits} / {requirement.major}")
+    print(f"교양 학점: {general_credits} / {requirement.liberal_arts}")
+    print(f"현장실습: {field_practice_credits} / {requirement.field_practice}")
+    print(f"전공 필수 과목 학점: {major_required_credits_earned} / {requirement.major_required}")
 
-    if total_credits >= total_graduation_credits:
+    if total_credits >= requirement.total_credits:
         print("총 학점 요건 충족!")
     else:
-        print(f"총 학점 부족! 부족 학점: {total_graduation_credits - total_credits}")
+        print(f"총 학점 부족! 부족 학점: {requirement.total_credits - total_credits}")
 
-    if major_credits >= major_required_credits:
+    if major_credits >= requirement.major:
         print("전공 학점 요건 충족!")
     else:
-        print(f"전공 학점 부족! 부족 학점: {major_required_credits - major_credits}")
+        print(f"전공 학점 부족! 부족 학점: {requirement.major - major_credits}")
 
-    if general_credits >= general_required_credits:
+    if general_credits >= requirement.liberal_arts:
         print("교양 학점 요건 충족!")
     else:
-        print(f"교양 학점 부족! 부족 학점: {general_required_credits - general_credits}")
+        print(f"교양 학점 부족! 부족 학점: {requirement.liberal_arts - general_credits}")
 
     if field_practice_credits >= field_practice_required:
         print("현장실습 요건 충족!")

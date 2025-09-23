@@ -266,8 +266,12 @@ class RecommendationService:
 
                     print("final-general: ", general_recommendations)
 
+                    user_crud = UserCrud(self.db)
+                    profile = await user_crud.get_user_profile(userId)
+
                     try:
                         curriculum, total_credits, filtered_lecture_list = await build_final_curriculum(
+                            student_id=profile.student_id,
                             completed_data=completed_data,
                             completed_codes=completed_codes,
                             completed_names=completed_names,
