@@ -5,6 +5,7 @@ import json
 import os
 from dotenv import load_dotenv
 from jose import jwt, JWTError
+from openai.types.chat import ChatCompletionUserMessageParam
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.chat.chat_repository import ChatCrud
 from app.curriculum.curriculum_repository import CurriculumCrud
@@ -16,6 +17,7 @@ from app.recommendation.service.recommendation_service import RecommendationServ
 from app.curriculum.service.curriculum_edit_service import CurriculumEditService
 from app.utils.completed_data import get_completed_data
 from app.curriculum.service.curriculum_manager import CurriculumService
+from app.curriculum.service.retake_service import RetakeService
 
 load_dotenv()
 
@@ -40,6 +42,7 @@ class WebSocketHandler:
         self.recommendation_service = RecommendationService(db)
         self.curriculum_edit_service = CurriculumEditService(db)
         self.curriculum_service = CurriculumService(db)
+        self.retake_service = RetakeService(db)
 
     async def handle_websocket(self, websocket: WebSocket):
         token = websocket.query_params.get("token")
@@ -81,6 +84,7 @@ class WebSocketHandler:
         completed_codes = set()
         completed_names = set()
         completed_data = await get_completed_data(self.db, userId)
+        retake_service = RetakeService(self.db)
 
         try:
             while True:
@@ -134,10 +138,6 @@ class WebSocketHandler:
                                                                    message=message)
                                 continue
 
-                        if await self.gpt_service.is_curriculum_edit_request(user_input):
-                            await self.curriculum_edit_service.handle_completed_curriculum_edit(websocket, user_input)
-                            continue
-
                         if "pending_addition" in websocket.scope:
                             await self.curriculum_edit_service.handle_pending_addition_in_edit_mode(websocket,
                                                                                                     user_input, userId)
@@ -156,7 +156,12 @@ class WebSocketHandler:
 
                         response = await client.chat.completions.create(
                             model="gpt-4-turbo",
-                            messages=[{"role": "user", "content": user_input.strip()}],
+                            messages=[
+                                ChatCompletionUserMessageParam(
+                                    role="user",
+                                    content=user_input.strip()
+                                )
+                            ],
                             max_tokens=300,
                             temperature=0.7
                         )
@@ -168,7 +173,11 @@ class WebSocketHandler:
                         continue
 
                     elif mode == "waiting_condition_selection":
+                        print(f"[DEBUG] 조건 파싱 시작, 입력: {user_input}")
                         selected_conditions = await self.gpt_service.parse_conditions_with_gpt(user_input)
+                        print(f"[DEBUG] 파싱 결과: {selected_conditions}")
+                        print(f"[DEBUG] 타입: {type(selected_conditions)}")
+
                         if not selected_conditions:
                             message = (
                                 "조건을 인식하지 못했습니다. 예시: '졸업, 팀플 제외, 재수강'\n"
@@ -182,25 +191,26 @@ class WebSocketHandler:
                         print(f"[선택된 조건]: {selected_conditions}")
 
                         if "retake" in selected_conditions:
-                            retake_elligible_grades = {"C+", "C0", "D+", "D0", "F", "NP"}
-                            retake_candidates = []
-                            for semester, types in completed_data.items():
-                                for lec_type, lectures in types.items():
-                                    for code, name, credit, grade in lectures:
-                                        if grade in retake_elligible_grades:
-                                            retake_candidates.append({
-                                                "code": code,
-                                                "name": name,
-                                                "credit": credit,
-                                                "grade": grade
-                                            })
+                            print(f"[DEBUG] 재수강 조건 감지, userId={userId}")
+                            retake_candidates = await retake_service.get_retake_eligible_courses(userId)
+                            websocket.scope["retake_candidates"] = retake_candidates
+                            print(f"[DEBUG] 재수강 목록: {retake_candidates}")
 
-                            message = "이전에 수강한 강의 중 재수강이 가능한 강의 목록입니다.\n재수강하고 싶은 과목을 입력해 주세요."
-                            await websocket.send_text(json.dumps({
-                                "message": message,
-                                "retake_candidates": retake_candidates
-                            }))
-                            mode = "waiting_retake_selection"
+                            if retake_candidates:
+                                message = "이전에 수강한 강의 중 재수강이 가능한 강의 목록입니다.\n재수강하고 싶은 과목을 입력해 주세요."
+                                await websocket.send_text(json.dumps({
+                                    "message": message,
+                                    "retake_candidates": retake_candidates
+                                }))
+                                await self.chat_crud.save_chat_log(session_id=session_id, chat_type="B",
+                                                                   message=message)
+                                mode = "waiting_retake_selection"
+                            else:
+                                message = "현재 재수강 가능한 과목이 없습니다. 다음 단계로 넘어가겠습니다.\n전공 관련 관심 분야를 입력해주세요."
+                                await websocket.send_text(json.dumps({"message": message}))
+                                await self.chat_crud.save_chat_log(session_id=session_id, chat_type="B",
+                                                                   message=message)
+                                mode = "waiting_major_interest"
                             continue
 
                         message = "전공 관련 관심 분야를 입력해주세요."
@@ -215,7 +225,7 @@ class WebSocketHandler:
 
                     elif mode == "waiting_major_interest":
                         major_lectures, major_interest, completed_codes = await self.recommendation_service.handle_major_interest_input(
-                            client, websocket, user_input, completed_names, session_id, completed_data
+                            client, websocket, user_input, completed_names, session_id, completed_data, userId
                         )
 
                         if not major_lectures:
@@ -251,40 +261,105 @@ class WebSocketHandler:
 
                     elif mode == "waiting_retake_selection":
                         try:
-                            if isinstance(user_input, str):
-                                if user_input.strip().startswith("["):
-                                    user_names = json.loads(user_input)
+                            print(f"[DEBUG] waiting_retake_selection user_input raw: {user_input} ({type(user_input)})")
+                            try:
+                                if not user_input or user_input.strip() in ["", "[]"]:
+                                    user_inputs = []
+
                                 else:
-                                    user_names = [name.strip() for name in user_input.split(",") if name.strip()]
-                            else:
-                                user_names = user_input
+                                    user_inputs = json.loads(user_input)
+                                    if isinstance(user_inputs, str):
+                                        user_inputs = [user_inputs]
 
-                            lecture_list = await self.lecture_crud.get_lecture_list()
-                            retake_codes = await self.gpt_service.names_to_codes_by_gpt(user_names, lecture_list,
-                                                                                        completed_data)
-                            websocket.scope["retake_codes"] = retake_codes
+                            except json.JSONDecodeError:
+                                user_inputs = [name.strip() for name in user_input.split(",") if name.strip()]
 
-                            message = "전공 관련 관심 분야를 입력해주세요."
-                            await websocket.send_text(json.dumps({
-                                "message": message,
-                                "type": "waiting_major_interest"
-                            }))
-                            await self.chat_crud.save_chat_log(session_id=session_id, chat_type="B", message=message)
+                            print(f"[DEBUG] 파싱 결과 user_inputs = {user_inputs} ({type(user_inputs)})")
 
-                            mode = "waiting_major_interest"
-                            websocket.scope["mode"] = "waiting_major_interest"
-                            continue
+                            if not user_inputs:
+                                websocket.scope["retake_codes"] = []
+                                message = "전공 관련 관심 분야를 입력해주세요."
+                                await websocket.send_text(json.dumps({
+                                    "message": message,
+                                    "type": "waiting_major_interest"
+                                }))
+
+                                await self.chat_crud.save_chat_log(session_id=session_id, chat_type="B",
+                                                                   message=message)
+                                mode = "waiting_major_interest"
+                                websocket.scope["mode"] = "waiting_major_interest"
+                                continue
+
+                            try:
+                                retake_candidates = websocket.scope.get("retake_candidates")
+                                code_to_name = {c["code"]: c["name"] for c in (retake_candidates or [])}
+
+                                retake_codes = []
+                                invalid_codes = []
+
+                                for item in user_inputs:
+                                    if item in code_to_name:
+                                        resolved = await self.retake_service.resolve_final_code(item)
+
+                                        if resolved:
+                                            retake_codes.append(resolved)
+
+                                        else:
+                                            invalid_codes.append(item)
+
+                                    else:
+                                        lecture_list = await self.lecture_crud.get_lecture_list()
+                                        mapped = await self.gpt_service.names_to_codes_by_gpt(
+                                            [item], lecture_list, completed_data
+                                        )
+
+                                        for code in mapped:
+                                            resolved = await self.retake_service.resolve_final_code(code)
+                                            if resolved:
+                                                retake_codes.append(resolved)
+                                            else:
+                                                invalid_codes.append(code)
+
+                                if invalid_codes:
+                                    msg = f"다음 과목은 폐지되어 재수강이 불가합니다: {', '.join(invalid_codes)}"
+                                    await websocket.send_text(json.dumps({"message": msg}))
+                                    await self.chat_crud.save_chat_log(session_id=session_id, chat_type="B",
+                                                                       message=msg)
+                                if retake_codes:
+                                    websocket.scope["retake_codes"] = list(set(retake_codes))
+                                    message = "전공 관련 관심 분야를 입력해주세요."
+
+                                else:
+                                    message = "선택한 과목들은 모두 재수강이 불가합니다. 다음 단계로 넘어갑니다.\n전공 관련 관심 분야를 입력해주세요."
+
+                                await websocket.send_text(json.dumps({
+                                    "message": message,
+                                    "type": "waiting_major_interest"
+                                }))
+
+                                await self.chat_crud.save_chat_log(session_id=session_id, chat_type="B",
+                                                                   message=message)
+                                mode = "waiting_major_interest"
+                                websocket.scope["mode"] = "waiting_major_interest"
+                                continue
+
+                            except Exception as e:
+                                print(f"[재수강 후처리 에러] user_inputs={user_inputs}, error={e}")
+                                await websocket.send_text(json.dumps({
+                                    "message": f"재수강 처리 중 오류가 발생했습니다: {str(e)}"
+                                }))
+                                continue
 
                         except Exception as e:
-                            print(f"[재수강 선택 처리 에러] {e}")
+                            print(f"[재수강 선택 처리 에러] raw={user_input}, error={e}")
                             await websocket.send_text(json.dumps({
-                                "message": "재수강 과목 선택 형식이 올바르지 않습니다. 다시 시도해 주세요."
+                                "message": "재수강 과목 입력을 이해하지 못했습니다. 예: ACS20010, 자료구조"
                             }))
                             continue
 
                     elif mode == "waiting_general_interest":
                         general_lectures, general_interest, completed_codes = await self.recommendation_service.handle_general_interest_input(
-                            client, websocket, user_input, completed_names, session_id, completed_data
+                            client, websocket, user_input, completed_names, session_id, completed_data, userId
                         )
 
                         if not general_lectures:

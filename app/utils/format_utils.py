@@ -64,3 +64,13 @@ def format_lecture_info_block(final_lectures, lecture_data):
     )
 
     return lectures_str, lecture_info_str
+
+def normalize_semester(val: str) -> int:
+    if str(val) == "1":
+        return 1
+    elif str(val) == "2":
+        return 2
+    elif str(val) in ("S", "W"):
+        return 0
+    else:
+        raise ValueError(f"[학기 값 에러] 지원하지 않는 학기 값: {val}")

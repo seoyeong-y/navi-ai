@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.lecture.lecture_models import LectureCode, RecentLecture, LectureReplacement
+from app.lecture.lecture_models import LectureCode, RecentLecture, LectureReplacement, Prerequisite, RequiredKnowledge
 from typing import List, Optional, Set
 
 
@@ -10,25 +10,82 @@ class LectureCrud:
 
     # 강의명으로 강의 정보 조회
     async def get_lecture_by_name(self, name: str) -> Optional[tuple]:
-        stmt = select(RecentLecture).where(RecentLecture.name == name)
+        stmt = select(RecentLecture, LectureCode.id).join(
+            LectureCode, LectureCode.code == RecentLecture.code
+        ).where(RecentLecture.name == name)
         result = await self.db.execute(stmt)
-        lecture = result.scalar_one_or_none()
+        row = result.first()
 
-        if lecture:
-            return (lecture.name, lecture.credits, lecture.type,
-                    lecture.grade, lecture.semester, '', '', lecture.team_project, lecture.code, lecture.major)
-        return None
+        if not row:
+            return None
+
+        lecture, lec_code_id = row
+
+        # 선수 과목
+        prereq_stmt = select(LectureCode.name).join(
+            Prerequisite, Prerequisite.pre_lecture_code == LectureCode.id
+        ).where(Prerequisite.lecture_code == lec_code_id)
+        prereq_result = await self.db.execute(prereq_stmt)
+        prereqs = [r[0] for r in prereq_result]
+
+        # 필요 지식
+        req_stmt = select(LectureCode.name).join(
+            RequiredKnowledge, RequiredKnowledge.required_lecture_code == LectureCode.id
+        ).where(RequiredKnowledge.lecture_code == lec_code_id)
+        req_result = await self.db.execute(req_stmt)
+        required = [r[0] for r in req_result]
+
+        combined = prereqs + required
+        prereq_str = ", ".join(combined) if combined else ""
+
+        return (
+            lecture.name, lecture.credits, lecture.type,
+            lecture.grade, lecture.semester,
+            prereq_str,
+            '',
+            lecture.team_project, lecture.code, lecture.major
+        )
 
 
     # 전체 강의 목록 조회
     async def get_lecture_list(self) -> List[tuple]:
-        stmt = select(RecentLecture)
+        stmt = select(RecentLecture, LectureCode.id).join(
+            LectureCode, LectureCode.code == RecentLecture.code
+        )
         result = await self.db.execute(stmt)
-        lectures = result.scalars().all()
+        rows = result.all()
 
-        return [(lec.name, lec.credits, lec.type, lec.grade, lec.semester,
-                 '', '', lec.team_project, lec.code, lec.major) for lec in lectures]
+        unique = {}
+        for lecture, lec_code_id in rows:
+            if lecture.code in unique:
+                continue
 
+            # 선수 과목
+            prereq_stmt = select(LectureCode.name).join(
+                Prerequisite, Prerequisite.pre_lecture_code == LectureCode.id
+            ).where(Prerequisite.lecture_code == lec_code_id)
+            prereq_result = await self.db.execute(prereq_stmt)
+            prereqs = [r[0] for r in prereq_result]
+
+            # 필요 지식
+            req_stmt = select(LectureCode.name).join(
+                RequiredKnowledge, RequiredKnowledge.required_lecture_code == LectureCode.id
+            ).where(RequiredKnowledge.lecture_code == lec_code_id)
+            req_result = await self.db.execute(req_stmt)
+            required = [r[0] for r in req_result]
+
+            combined = prereqs + required
+            prereq_str = ", ".join(combined) if combined else ""
+
+            unique[lecture.code] = (
+                lecture.name, lecture.credits, lecture.type,
+                lecture.grade, lecture.semester,
+                prereq_str,
+                '',
+                lecture.team_project, lecture.code, lecture.major
+            )
+
+        return list(unique.values())
 
     # 강의 코드-ID 매핑 조회
     async def get_lecture_code_id_map(self) -> dict:
@@ -67,13 +124,17 @@ class LectureCrud:
         # MR, GR 타입의 강의만 조회
         stmt = select(RecentLecture).where(
             RecentLecture.type.in_(['MR', 'GR']),
-            RecentLecture.code.notin_(completed_codes),
-            RecentLecture.grade <= str(student_grade)
+            RecentLecture.code.notin_(completed_codes)
         )
         result = await self.db.execute(stmt)
         lectures = result.scalars().all()
 
-        for lecture in lectures:
+        unique = {}
+        for lec in lectures:
+            if lec.code not in unique:
+                unique[lec.code] = lec
+
+        for lecture in unique.values():
             if lecture.type == 'MR':
                 uncompleted_mr.append(lecture.name)
             else:
@@ -96,3 +157,8 @@ class LectureCrud:
         )
         result = await self.db.execute(stmt)
         return [row.original_code for row in result]
+
+    async def get_general_lectures_by_name(self, name: str):
+        stmt = select(RecentLecture).where(RecentLecture.name == name, RecentLecture.type == "GE")
+        result = await self.db.execute(stmt)
+        return result.scalars().all()

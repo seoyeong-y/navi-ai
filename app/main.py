@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.chat.chat_repository import ChatCrud
 from app.core.config import settings
+from app.curriculum.service.retake_service import RetakeService
 from app.database.connection import init_db, close_db, get_db
 from app.chat.websocket_handler import WebSocketHandler
 
@@ -75,6 +76,30 @@ async def get_history_by_session(sessionId: int, db: AsyncSession = Depends(get_
             for log in logs
         ]
     }
+
+
+@app.get("/retake/eligible/{user_id}")
+async def get_retake_eligible_courses(user_id: int, db: AsyncSession = Depends(get_db)):
+    """사용자의 재수강 가능 과목 목록 조회"""
+    try:
+        retake_service = RetakeService(db)
+        retake_candidates = await retake_service.get_retake_eligible_courses(user_id)
+
+        return {
+            "success": True,
+            "message": "재수강 가능 과목 조회 성공",
+            "data": {
+                "user_id": user_id,
+                "retake_candidates": retake_candidates,
+                "total_count": len(retake_candidates)
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"재수강 가능 과목 조회 실패: {str(e)}",
+            "data": None
+        }
 
 if __name__ == "__main__":
     import uvicorn
