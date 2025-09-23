@@ -24,7 +24,7 @@ class RecommendationService:
         self.gpt_service = GPTService(db)
         self.user_crud = UserCrud(db)
 
-    async def handle_major_interest_input(self, client, websocket, user_input, completed_names, session_id, completed_data):
+    async def handle_major_interest_input(self, client, websocket, user_input, completed_names, session_id, completed_data, userId):
         resolved, unclear = await self.gpt_service.resolve_unclear_interest(user_input)
         interest = resolved
         websocket.scope["major_interest"] = interest
@@ -57,8 +57,15 @@ class RecommendationService:
                 for _, name, _, _, status in lectures:
                     completed_names.add(name)
 
-        major_lectures = await self.lecture_service.fetch_major_lectures()
-        major_lectures = [lec for lec in major_lectures if "(SDU)" not in lec and lec not in completed_names]
+        user_profile = await self.user_crud.get_user_profile(userId)
+        student_grade = user_profile.grade if user_profile else 1
+
+        major_lectures = await self.lecture_service.fetch_major_lectures(student_grade)
+        major_lectures = [
+            lec for lec in major_lectures
+            if "(SDU)" not in lec and lec not in completed_names
+               and not (isinstance(lec, (list, tuple)) and len(lec) > 4 and lec[4] in ("S", "W"))
+        ]
         major_lectures_str = "\n".join(major_lectures)
 
         prompt = f"""
@@ -77,6 +84,7 @@ class RecommendationService:
         3. 강의 수는 사용자 입력에 가장 관련성이 높은 강의들로만 제한되어야 합니다.
         4. 추천 강의는 가장 관련성이 높은 순으로 정렬해주세요.
         5. 추천 강의 개요 및 목표도 고려하여 추천해주세요. 대신 출력은 강의명만 해주세요.
+        6. 최소 5개 이상 추천해 주세요.
 
         강의 추천 결과:
         """
@@ -96,12 +104,16 @@ class RecommendationService:
         ]
 
         major_lecture_infos = await self.lecture_service.fetch_lecture_infos_for_recommendation()
+        major_lecture_infos = [
+            lec for lec in major_lecture_infos
+            if not (isinstance(lec, (list, tuple)) and len(lec) > 4 and lec[4] in ("S", "W"))
+        ]
 
         filtered_lectures = await self.gpt_service.filter_recommended_lectures_by_description(
             recommended_lectures, major_lecture_infos, interest
         )
 
-        valid_major_lectures = set(await self.lecture_service.fetch_major_lectures())
+        valid_major_lectures = set(await self.lecture_service.fetch_major_lectures(student_grade))
         filtered_lectures = [lec for lec in filtered_lectures if lec in valid_major_lectures]
 
         print("[입력된 관심 분야]:", user_input)
@@ -110,7 +122,7 @@ class RecommendationService:
 
         return filtered_lectures, interest, completed_codes
 
-    async def handle_general_interest_input(self, client, websocket, user_input, completed_names, session_id, completed_data):
+    async def handle_general_interest_input(self, client, websocket, user_input, completed_names, session_id, completed_data, userId):
         resolved, unclear = await self.gpt_service.resolve_unclear_interest(user_input)
         interest = resolved
         websocket.scope["general_interest"] = interest
@@ -142,9 +154,15 @@ class RecommendationService:
             for lectures in semester.values():
                 for _, name, _, _, status in lectures:
                     completed_names.add(name)
+        user_profile = await self.user_crud.get_user_profile(userId)
+        student_grade = user_profile.grade if user_profile else 1
 
-        general_lectures = await self.lecture_service.fetch_general_lectures()
-        general_lectures = [lec for lec in general_lectures if "(SDU)" not in lec and lec not in completed_names]
+        general_lectures = await self.lecture_service.fetch_general_lectures(student_grade)
+        general_lectures = [
+            lec for lec in general_lectures
+            if "(SDU)" not in lec and lec not in completed_names
+               and not (isinstance(lec, (list, tuple)) and len(lec) > 4 and lec[4] in ("S", "W"))
+        ]
         general_lectures_str = "\n".join(general_lectures)
 
         prompt = f"""
@@ -185,7 +203,7 @@ class RecommendationService:
         def normalize(text):
             return re.sub(r'\s+', '', text.lower())
 
-        valid_general_lectures = set(await self.lecture_service.fetch_general_lectures())
+        valid_general_lectures = set(await self.lecture_service.fetch_general_lectures(student_grade))
         normalized_valids = {normalize(name): name for name in valid_general_lectures}
 
         filtered_lectures = []
@@ -201,6 +219,9 @@ class RecommendationService:
 
     async def handle_recommendation_modification(self, websocket, user_input, final_lectures, completed_names, completed_codes, completed_data, interest, userId, mode):
         try:
+            user_profile = await self.user_crud.get_user_profile(userId)
+            student_grade = user_profile.grade if user_profile else 1
+
             if await self.gpt_service.is_no_more_modification(user_input):
                 if websocket.scope.get("mode") == "modification_major":
                     return "next_general"
@@ -394,12 +415,12 @@ class RecommendationService:
 
             if mode == "modification_general":
                 print("modification_general 진입")
-                lecture_pool_full = await self.lecture_service.fetch_general_lectures()
+                lecture_pool_full = await self.lecture_service.fetch_general_lectures(student_grade)
                 print(f"lecture_pool_raw: {lecture_pool_full}")
                 lecture_pool = [lec[0] if isinstance(lec, (list, tuple)) else lec for lec in lecture_pool_full]
                 print(f"lecture_pool parsed: {lecture_pool[:10]}")
             else:
-                lecture_pool = await self.lecture_service.fetch_major_lectures()
+                lecture_pool = await self.lecture_service.fetch_major_lectures(student_grade)
                 interest = websocket.scope.get("major_interest", [])
 
             try:

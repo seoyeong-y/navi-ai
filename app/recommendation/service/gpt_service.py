@@ -1,11 +1,12 @@
 import json
-import re
 from typing import List, Tuple
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam
 from app.core.config import Settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from app.curriculum.curriculum_models import Curriculum
+from app.core.constants import GRADE_POINT
 
 settings = Settings()
 
@@ -20,7 +21,7 @@ class GPTService:
             self,
             recommended: List[str],
             lecture_infos: List[Tuple],
-            user_input: str
+            user_input: str | list[str]
     ) -> List[str]:
         if not recommended:
             return []
@@ -46,18 +47,32 @@ class GPTService:
         """
 
         response = await self.client.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[{"role": "user", "content": filter_prompt}],
+            model="gpt-3.5-turbo",
+            messages=[ChatCompletionUserMessageParam(role="user", content=filter_prompt)],
             max_tokens=200,
             temperature=0.5,
         )
 
         filtered_text = response.choices[0].message.content.strip()
-        return [
-            line.strip()
-            for line in filtered_text.split("\n")
-            if line.strip() in recommended
-        ]
+
+        try:
+            start = filtered_text.find("[")
+            end = filtered_text.rfind("]") + 1
+            if start != -1 and end > start:
+                json_text = filtered_text[start:end]
+                parsed = json.loads(json_text)
+                return [name for name in parsed if name in recommended]
+            else:
+                raise ValueError("JSON 패턴 없음")
+        except Exception:
+            lines = [
+                line.lstrip("-").strip()
+                for line in filtered_text.split("\n")
+                if line.strip()
+            ]
+            result = [lec for lec in lines if lec in recommended]
+            print(f"[라인 파싱 결과] {result}")
+            return result
 
     # GPT 기반 유사 강의 검색
     async def find_similar_lecture_by_gpt(
@@ -76,19 +91,19 @@ class GPTService:
         """
 
         response = await self.client.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[{"role": "user", "content": prompt}],
+            model="gpt-3.5-turbo",
+            messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
             max_tokens=20,
             temperature=0.3
         )
 
-        result = response.choices[0].message.content.strip()
+        text = response.choices[0].message.content.strip()
         matched = next(
             (lec for lec in candidate_lectures
-             if result.replace(" ", "").lower() in lec.replace(" ", "").lower()),
+             if text.replace(" ", "").lower() in lec.replace(" ", "").lower()),
             None
         )
-        return matched if matched else result
+        return matched if matched else text
 
     # GPT로 추가/삭제 요청 분석
     async def parse_add_remove_lectures(
@@ -124,8 +139,8 @@ class GPTService:
         """
 
         response = await self.client.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[{"role": "user", "content": prompt}],
+            model="gpt-3.5-turbo",
+            messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
             temperature=0.3,
             max_tokens=100
         )
@@ -174,8 +189,8 @@ class GPTService:
 
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=3,
                 temperature=0
             )
@@ -209,10 +224,10 @@ class GPTService:
         """
 
         response = await self.client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": "너는 대학생의 강의 선택을 돕는 AI 챗봇이야."},
-                {"role": "user", "content": prompt}
+                ChatCompletionSystemMessageParam(role="system", content="너는 대학생의 강의 선택을 돕는 AI 챗봇이야."),
+                ChatCompletionUserMessageParam(role="user", content=prompt),
             ],
             max_tokens=200,
             temperature=0.5
@@ -236,9 +251,9 @@ class GPTService:
         4. 삭제 요청만 있는 경우에는 무시하세요.
 
         [YES 예시]
-        - "인공지능과 웹 개발 분야에 관심 있어" → YES: 인공지능, 웹 개발
-        - "데이터 분석, 머신러닝, 프론트엔드에 관심 있어" → YES: 데이터 분석, 머신러닝, 프론트엔드
-        - "보안, 데이터 분석" → YES: 보안, 데이터 분석
+        - "인공지능과 웹 개발 분야에 관심 있어" -> YES: 인공지능, 웹 개발
+        - "데이터 분석, 머신러닝, 프론트엔드에 관심 있어" -> YES: 데이터 분석, 머신러닝, 프론트엔드
+        - "보안, 데이터 분석" -> YES: 보안, 데이터 분석
         - "클라우드컴퓨팅" -> YES: 클라우드컴퓨팅
         - "모바일 관련 강의 2개 추가해줘" -> YES: 모바일
         - "IoT 설계 없애고 웹 강의 넣어줘" -> YES: 웹
@@ -248,6 +263,7 @@ class GPTService:
         - "모르겠어"
         - "적당히 알아서 추천해줘"
         - "없어"
+        - "됐어"
 
         [무시 예시]
         - "한국어 강의 삭제해줘"
@@ -257,8 +273,8 @@ class GPTService:
 
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-3.5-turbo",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=100,
                 temperature=0
             )
@@ -310,13 +326,13 @@ class GPTService:
 
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=10,
                 temperature=0
             )
             result = response.choices[0].message.content.strip().replace('"', '').strip()
-            print(f"[수정 여부 판단] 입력: {user_input} → GPT 응답: {result}")
+            print(f"[수정 여부 판단] 입력: {user_input} -> GPT 응답: {result}")
             return result == "종료"
         except Exception as e:
             print(f"[GPT 판단 오류] {e}")
@@ -344,8 +360,8 @@ class GPTService:
         """
 
         response = await self.client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
+            model="gpt-3.5-turbo",
+            messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
             max_tokens=40,
             temperature=0,
         )
@@ -368,15 +384,15 @@ class GPTService:
 
         - 사용자가 커리큘럼을 설계하거나 생성해달라고 요청하는 경우
         - 예: "커리큘럼 짜줘", "관심 분야로 수업 추천해줘", "커리큘럼 만들어줘", "커리큘럼 설계", "커리큘럼 생성" 등
-        - 반례: "커리큘럼에서 삭제해줘", "이동시켜줘", "강의 바꿔줘", "수업 빼줘" → 이런 건 전부 NO입니다
+        - 반례: "커리큘럼에서 삭제해줘", "이동시켜줘", "강의 바꿔줘", "수업 빼줘" -> 이런 건 전부 NO입니다
 
         절대 설명 없이 YES 또는 NO만 출력하세요.
         """
 
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-3.5-turbo",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=3,
                 temperature=0
             )
@@ -388,20 +404,18 @@ class GPTService:
 
     # 재수강 강의 코드 변환
     async def names_to_codes_by_gpt(self, user_names, lecture_list, completed_data):
-        from app.core.constants import GRADE_POINT
-
         # 1. C+ 이하 강의명 추출
         candidate_names = set()
         for sem in completed_data.values():
             for lecture_type, lectures in sem.items():
-                for code, name, credit, grade in lectures:
+                for code, name, credit, grade, status in lectures:
                     # grade가 문자("C+", "B0" 등)면
                     g = GRADE_POINT.get(str(grade).strip(), 10)
                     if g <= 2.5 or grade == 'NP':  # C+ 이하만 후보
                         candidate_names.add(name)
         candidate_names = list(candidate_names)
 
-        # 2. GPT로 name 매칭 → code 변환
+        # 2. GPT로 name 매칭 -> code 변환
         lecture_name_to_code = {lec[0]: lec[8] for lec in lecture_list}
 
         codes = []
@@ -414,7 +428,7 @@ class GPTService:
             if code:
                 codes.append(code)
             else:
-                print(f"[경고] name→code 변환 실패: {resolved_name}")
+                print(f"[경고] name->code 변환 실패: {resolved_name}")
         return codes
 
     # 추가 확인 판단
@@ -423,14 +437,14 @@ class GPTService:
         사용자의 입력: "{user_input}"
 
         위 입력이 이전에 제안한 강의 추가에 대한 '확인' 또는 '동의'를 의미하면 "YES", 아니라면 "NO"라고만 답하세요.
-        예: "응", "네", "맞아", "추가해줘", "그거야", "좋아" → YES
-        예: "아니", "다른 거", "그건 아냐", "다시 알려줘" → NO
+        예: "응", "네", "맞아", "추가해줘", "그거야", "좋아" -> YES
+        예: "아니", "다른 거", "그건 아냐", "다시 알려줘" -> NO
         절대 다른 설명 없이 YES 또는 NO만 출력하세요.
         """
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-3.5-turbo",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=3,
                 temperature=0
             )
@@ -462,8 +476,8 @@ class GPTService:
         """
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=3,
                 temperature=0
             )
@@ -505,8 +519,8 @@ class GPTService:
         """
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-3.5-turbo",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=100,
                 temperature=0
             )
@@ -593,8 +607,8 @@ class GPTService:
 
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-3.5-turbo",
+                messages=[ChatCompletionUserMessageParam(role="user", content=prompt)],
                 max_tokens=20,
                 temperature=0
             )
@@ -609,8 +623,8 @@ class GPTService:
     async def chat_with_gpt_simple(self, message: str) -> str:
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": message}]
+                model="gpt-3.5-turbo",
+                messages=[ChatCompletionUserMessageParam(role="user", content=message)]
             )
             return response.choices[0].message.content
         except Exception as e:

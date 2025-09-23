@@ -10,10 +10,15 @@ class LectureService:
         self.db = db
         self.lecture_crud = LectureCrud(db)
 
-    async def fetch_all_lectures(self):
+    async def fetch_all_lectures(self, student_grade: int = 1):
         stmt = select(RecentLecture.name).where(
             RecentLecture.type.in_(['ME', 'MR'])
-        ).group_by(RecentLecture.name)
+        )
+
+        if student_grade >= 2:
+            stmt = stmt.where(RecentLecture.grade != '1')
+
+        stmt = stmt.group_by(RecentLecture.name)
 
         try:
             result = await self.db.execute(stmt)
@@ -22,11 +27,16 @@ class LectureService:
             print(f"[강의 목록 조회 오류] {e}")
             return []
 
-    async def fetch_major_lectures(self):
+    async def fetch_major_lectures(self, student_grade: int = 1):
         stmt = select(RecentLecture.name).where(
             RecentLecture.type == 'ME',
             RecentLecture.major != 'LA'
-        ).group_by(RecentLecture.name)
+        )
+
+        if student_grade >= 2:
+            stmt = stmt.where(RecentLecture.grade != '1')
+
+        stmt = stmt.group_by(RecentLecture.name)
 
         try:
             result = await self.db.execute(stmt)
@@ -35,12 +45,16 @@ class LectureService:
             print(f"[전공 강의 조회 오류] {e}")
             return []
 
-    async def fetch_general_lectures(self):
+    async def fetch_general_lectures(self, student_grade: int = 1):
         stmt = select(RecentLecture.name).where(
             RecentLecture.type == 'GE',
             RecentLecture.major == 'LA',
-            RecentLecture.grade != '3'
-        ).group_by(RecentLecture.name)
+        )
+
+        if student_grade >= 2:
+            stmt = stmt.where(RecentLecture.grade != '1')
+
+        stmt = stmt.group_by(RecentLecture.name)
 
         try:
             result = await self.db.execute(stmt)
