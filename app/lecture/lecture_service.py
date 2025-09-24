@@ -12,7 +12,8 @@ class LectureService:
 
     async def fetch_all_lectures(self, student_grade: int = 1):
         stmt = select(RecentLecture.name).where(
-            RecentLecture.type.in_(['ME', 'MR'])
+            RecentLecture.type.in_(['ME', 'MR']),
+            RecentLecture.semester.notin_(["S", "W"])
         )
 
         if student_grade >= 2:
@@ -30,7 +31,8 @@ class LectureService:
     async def fetch_major_lectures(self, student_grade: int = 1):
         stmt = select(RecentLecture.name).where(
             RecentLecture.type == 'ME',
-            RecentLecture.major != 'LA'
+            RecentLecture.major != 'LA',
+            RecentLecture.semester.notin_(["S", "W"])
         )
 
         if student_grade >= 2:
@@ -49,6 +51,7 @@ class LectureService:
         stmt = select(RecentLecture.name).where(
             RecentLecture.type == 'GE',
             RecentLecture.major == 'LA',
+            RecentLecture.semester.notin_(["S", "W"])
         )
 
         if student_grade >= 2:
@@ -74,7 +77,8 @@ class LectureService:
             join(RecentLecture, LectureCode, RecentLecture.code == LectureCode.code)
         ).where(
             LectureCode.lecture_description.isnot(None),
-            LectureCode.lecture_objectives.isnot(None)
+            LectureCode.lecture_objectives.isnot(None),
+            RecentLecture.semester.notin_(["S", "W"])
         )
 
         try:
